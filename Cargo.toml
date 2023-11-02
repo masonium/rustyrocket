@@ -11,6 +11,7 @@ palette = "*"
 bevy_tweening = { version= "0.8" }
 bevy_asset_loader = { version = "*", features = ["2d"] }
 bevy-inspector-egui = "*"
+bevy_rapier2d = "0.22.0"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
