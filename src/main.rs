@@ -1,5 +1,5 @@
 use bevy::{
-    input::common_conditions::input_toggle_active,
+    input::common_conditions::{input_toggle_active, input_just_pressed},
     log::{Level, LogPlugin},
     prelude::*,
     render::render_resource::{FilterMode, SamplerDescriptor},
@@ -15,7 +15,7 @@ use rustyrocket::{
     player::PlayerPlugin,
     score::{Score, ScorePlugin},
     scoring_region::ScoringRegionPlugin,
-    ResetEvent, WorldSet, WorldSettings,
+    ResetEvent, WorldSet, WorldSettings, send_reset_event,
 };
 
 use rustyrocket::GameState;
@@ -51,6 +51,7 @@ fn main() {
                     primary_window: Some(Window {
                         title: "Rusty Rocket".to_string(),
                         resolution: WindowResolution::new(1024.0, 1024.0 * 9.0 / 16.0),
+			resizable: false,
                         ..default()
                     }),
                     ..default()
@@ -101,7 +102,12 @@ fn main() {
         .add_plugins(ScoringRegionPlugin)
         .add_plugins(GravityShiftPlugin)
         .add_systems(Startup, (setup_camera, setup_physics).in_set(WorldSet))
-        .add_systems(Update, reset_on_r.run_if(in_state(GameState::Playing)))
+        .add_systems(
+            Update,
+            send_reset_event
+		.run_if(in_state(GameState::Playing)
+			.and_then(input_just_pressed(KeyCode::R))),
+        )
         .add_systems(Update, (close_on_esc,))
         .run()
 }

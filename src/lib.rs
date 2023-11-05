@@ -8,14 +8,13 @@ use bevy::prelude::*;
 
 #[derive(Resource, Reflect)]
 pub struct WorldSettings {
-    pub jump_vector: Vec2,
+    /// Visible / bounds of the level world.
     pub bounds: Rect,
 }
 
 impl Default for WorldSettings {
     fn default() -> Self {
         Self {
-            jump_vector: Vec2::new(0.0, 300.0),
             bounds: Rect::default(),
         }
     }
@@ -30,6 +29,10 @@ pub enum GameState {
 
 #[derive(Event)]
 pub struct ResetEvent;
+
+pub fn send_reset_event(mut ev: EventWriter<ResetEvent>) {
+    ev.send(ResetEvent);
+}
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash, SystemSet)]
 pub struct WorldSet;

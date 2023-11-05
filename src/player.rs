@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_asset_loader::{asset_collection::AssetCollection, loading_state::LoadingStateAppExt};
 use bevy_rapier2d::prelude::*;
 
-use crate::{GameState, ResetEvent, WorldSettings};
+use crate::{GameState, ResetEvent, WorldSettings, level::LevelSettings};
 
 const JUMP_ANIM_FRAMES: u32 = 4;
 const JUMP_ANIM_TIME: f32 = 0.1;
@@ -29,6 +29,7 @@ struct PlayerAnim {
     state: PlayerState,
 }
 
+/// Create the initial player.
 fn spawn_player(mut commands: Commands, sprites: Res<SpriteCollection>) {
     commands.spawn((
         SpriteSheetBundle {
@@ -49,21 +50,20 @@ fn spawn_player(mut commands: Commands, sprites: Res<SpriteCollection>) {
         RigidBody::Dynamic,
         Velocity::default(),
         Sensor,
-        //ActiveEvents::COLLISION_EVENTS,
         Name::new("Player"),
     ));
 }
 
-/// Handle jumping inputs for the player
+/// Handle jumping inputs for the player.
 fn handle_input(
     mut player: Query<(&mut PlayerAnim, &mut Velocity)>,
     keys: Res<Input<KeyCode>>,
-    physics: Res<WorldSettings>,
+    level: Res<LevelSettings>,
 ) {
     let (mut p, mut v) = player.single_mut();
     if keys.just_pressed(KeyCode::Space) && p.state != PlayerState::Jumping {
         p.state = PlayerState::Jumping;
-        v.linvel = physics.jump_vector;
+        v.linvel = level.jump_vector();
     }
 }
 

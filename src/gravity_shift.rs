@@ -1,5 +1,5 @@
 //! Gravity shifting 'obstacle. When the user runs into it, their gravity is shifted in teh corresponding direction.
-use crate::{level::LevelSettings, GameState, WorldSettings};
+use crate::{level::LevelSettings, player::Player, GameState, WorldSettings};
 use bevy::{
     prelude::*,
     reflect::{TypePath, TypeUuid},
@@ -17,15 +17,8 @@ use bevy_rapier2d::prelude::*;
 pub struct GravityEvent {
     region: Entity,
 
-    /// new applied gravity scale
-    direction: f32,
-}
-
-/// Textures for gravity assets
-#[derive(Resource, AssetCollection)]
-pub struct GravityAssets {
-    #[asset(path = "images/grav_arrow_down.png")]
-    arrow: Handle<Image>,
+    /// new gravity multipler to set in settings
+    gravity_mult: f32,
 }
 
 #[derive(Default, Resource)]
@@ -36,9 +29,19 @@ pub struct GravityMaterials {
     mesh: Handle<Mesh>,
 }
 
+/// Textures for rendering gravity regions.
+#[derive(Resource, AssetCollection)]
+struct GravityAssets {
+    #[asset(path = "images/grav_arrow_down.png")]
+    arrow: Handle<Image>,
+}
+
+#[derive(Component, Resource)]
+struct GravityRegion(f32);
+
 #[derive(AsBindGroup, Clone, TypeUuid, TypePath, Debug)]
 #[uuid = "313dfd8f-51a7-4cf2-a5f2-8b1491988974"]
-pub struct ScrollingMaterial {
+struct ScrollingMaterial {
     #[texture(0)]
     #[sampler(1)]
     base_texture: Option<Handle<Image>>,
@@ -95,11 +98,13 @@ fn setup_gravity_assets(
 
 /// Create a new gravity region.
 pub fn new_gravity_region(
-    down: bool,
+    new_gravity_mult: f32,
     play_world: &Res<WorldSettings>,
     level: &Res<LevelSettings>,
     grav_mat: &Res<GravityMaterials>,
 ) -> impl Bundle {
+    let down = new_gravity_mult > 0.0;
+
     let width = level.gravity_width;
     let height = play_world.bounds.height();
     let q = grav_mat.mesh.clone();
@@ -113,13 +118,53 @@ pub fn new_gravity_region(
         MaterialMesh2dBundle {
             mesh: q.into(),
             material,
-            transform: Transform::from_translation(Vec3::new(level.start_offset + width / 2.0, 0.0, 3.0)),
+            transform: Transform::from_translation(Vec3::new(
+                level.start_offset + width / 2.0,
+                0.0,
+                3.0,
+            )),
             ..default()
         },
         Collider::cuboid(width * 0.5, height * 0.5),
         Sensor,
         RigidBody::KinematicVelocityBased,
+        GravityRegion(new_gravity_mult),
     )
+}
+
+/// Check for player interactions with any active gravity regions.
+fn check_gravity_region_collisions(
+    mut commands: Commands,
+    rapier: Res<RapierContext>,
+    regions: Query<(Entity, &GravityRegion)>,
+    player_q: Query<(Entity, &Player)>,
+    mut gevs: EventWriter<GravityEvent>,
+) {
+    let player = player_q.single();
+    for (region_entity, region) in regions.iter() {
+        if rapier.intersection_pair(player.0, region_entity) == Some(true) {
+            // send a gravity changing event.
+            gevs.send(GravityEvent {
+                region: region_entity,
+                gravity_mult: region.0,
+            });
+
+            // kill the gravity region marker so we don't keep sending events.
+            commands.entity(region_entity).remove::<GravityRegion>();
+        }
+    }
+}
+
+/// Change the level gravity mult.
+fn on_gravity_event(
+    mut level: ResMut<LevelSettings>,
+    mut rapier_config: ResMut<RapierConfiguration>,
+    mut gevs: EventReader<GravityEvent>,
+) {
+    for ev in gevs.iter() {
+        level.gravity_mult = ev.gravity_mult;
+        rapier_config.gravity = level.gravity_vector();
+    }
 }
 
 pub struct GravityShiftPlugin;
@@ -129,10 +174,14 @@ impl Plugin for GravityShiftPlugin {
         app.add_collection_to_loading_state::<_, GravityAssets>(GameState::AssetLoading)
             .add_plugins(Material2dPlugin::<ScrollingMaterial>::default())
             .insert_resource(GravityMaterials::default())
+            .add_event::<GravityEvent>()
             .add_asset::<ScrollingMaterial>()
+            .add_systems(OnEnter(GameState::Playing), setup_gravity_assets)
             .add_systems(
-                OnEnter(GameState::Playing),
-                setup_gravity_assets,
+                Update,
+                (check_gravity_region_collisions, on_gravity_event)
+                    .chain()
+                    .run_if(in_state(GameState::Playing)),
             );
     }
 }

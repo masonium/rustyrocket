@@ -1,17 +1,28 @@
 use std::time::Duration;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, input::common_conditions::input_just_pressed};
 use bevy_rapier2d::prelude::*;
 
 use crate::{
+    gravity_shift::{new_gravity_region, GravityMaterials},
     obstacle::{new_obstacle, HitObstacleEvent, ObstacleAssets, RegionRef},
     scoring_region::new_scoring_region,
-    GameState, LevelSet, ResetEvent, WorldSet, WorldSettings, gravity_shift::{new_gravity_region, GravityMaterials},
+    GameState, LevelSet, ResetEvent, WorldSet, WorldSettings, send_reset_event,
 };
 
 #[derive(Resource, Reflect, Default)]
 pub struct LevelSettings {
-    vel: Vec2,
+    /// Base velocity of items in the level.
+    item_vel: Vec2,
+
+    /// Base velocity jump vector (set when initializing a jump). Can
+    /// be modified by the gravity mult.
+    base_jump_vel: Vec2,
+
+    /// Base gravity acceleration vector. Typically not modified in
+    /// game, but is effectively tranformed by gravity mult.
+    base_gravity: Vec2,
+
     center_y_range: [f32; 2],
     gap_height_range: [f32; 2],
     pub obstacle_width: f32,
@@ -20,22 +31,39 @@ pub struct LevelSettings {
     pub gravity_width: f32,
     pub start_offset: f32,
 
+    /// Spawn rate.
     seconds_per_item: f32,
-    gravity_direction: Vec2,
 
+    pub gravity_mult: f32,
+
+    /// Total number of logical items sent since reset.
     num_items: u32,
     since_last_gravity: u32,
-
 }
 
 impl LevelSettings {
     /// Settings that should be reset on level start
     fn reset(&mut self) {
-	self.vel  = Vec2::new(-200.0, 0.0);
-	self.gravity_direction = Vec2::new(0.0, -500.0);
-	self.seconds_per_item = 2.0;
-	self.num_items = 0;
-	self.since_last_gravity = 0;
+        self.item_vel = Vec2::new(-200.0, 0.0);
+        self.seconds_per_item = 2.0;
+        self.num_items = 0;
+        self.since_last_gravity = 0;
+	self.gravity_mult = 1.0;
+    }
+
+    /// Return the current jump vector, taking the gravity mult into account.
+    pub fn jump_vector(&self) -> Vec2 {
+	self.base_jump_vel * self.gravity_mult
+    }
+
+    /// return the current gravity vector, taking the gravity mult into account.
+    pub fn gravity_vector(&self) -> Vec2 {
+	self.base_gravity * self.gravity_mult
+    }
+
+    /// Sync the level settings to rapier.
+    pub fn sync_to_rapier(&self, rc: &mut ResMut<RapierConfiguration>) {
+	rc.gravity = self.base_gravity * self.gravity_mult;
     }
 }
 
@@ -52,7 +80,6 @@ pub struct RemoveOnReset;
 pub struct LevelTimer {
     timer: Timer,
 }
-    
 
 /// Initialize the level settings.
 fn setup_level_settings(
@@ -61,6 +88,8 @@ fn setup_level_settings(
 ) {
     level_settings.reset();
 
+    level_settings.base_jump_vel = Vec2::new(0.0, 300.0);
+    level_settings.base_gravity = Vec2::new(0.0, -500.0);
     level_settings.center_y_range = [-200.0, 200.0];
     level_settings.gap_height_range = [200.0, 300.0];
     level_settings.obstacle_width = 96.0;
@@ -71,12 +100,13 @@ fn setup_level_settings(
     level_settings.start_offset = world_settings.bounds.max.x + 100.0;
 }
 
-
 /// Update the level timer.
 fn update_timer(time: Res<Time>, mut timer: ResMut<LevelTimer>) {
     timer.timer.tick(time.delta());
 }
 
+
+/// On a timer, spawn one of many items.
 fn spawn_items(
     commands: Commands,
     mut level_settings: ResMut<LevelSettings>,
@@ -87,16 +117,16 @@ fn spawn_items(
     level_timer: Res<LevelTimer>,
 ) {
     if level_timer.timer.just_finished() {
-	let should_spawn_obstacle = level_settings.num_items == 0 || level_settings.since_last_gravity < 5;
-	dbg!(level_settings.since_last_gravity);
-	level_settings.num_items += 1;
-	if should_spawn_obstacle {
-	    level_settings.since_last_gravity += 1;
-	    spawn_obstacles(commands, level_settings.into(), meshes, play_world, obs_mat);
-	} else {
-	    level_settings.since_last_gravity = 0;
-	    spawn_gravity_region(commands, level_settings, play_world, grav_mat);
-	}
+        let should_spawn_obstacle =
+            level_settings.num_items == 0 || level_settings.since_last_gravity < 5;
+        level_settings.num_items += 1;
+        if should_spawn_obstacle {
+            level_settings.since_last_gravity += 1;
+            spawn_obstacles(commands, level_settings.into(), meshes, play_world, obs_mat);
+        } else {
+            level_settings.since_last_gravity = 0;
+            spawn_gravity_region(commands, level_settings, play_world, grav_mat);
+        }
     }
 }
 
@@ -105,21 +135,30 @@ fn spawn_gravity_region(
     level_settings: ResMut<LevelSettings>,
     play_world: Res<WorldSettings>,
     grav_mat: Res<GravityMaterials>,
-
 ) {
     let vel = Velocity {
-        linvel: level_settings.vel,
+        linvel: level_settings.item_vel,
         ..default()
     };
 
-    let current_up = level_settings.gravity_direction.y > 0.0;
+    let current_up = level_settings.base_gravity.y > 0.0;
 
-    commands.spawn(new_gravity_region(current_up, &play_world, &level_settings.into(), &grav_mat))
-        .insert((Name::new(format!("gravity {}", if current_up { "down" } else { "up" })),
-		 RemoveWhenLeft,
-		 RemoveOnReset,
-		 vel.clone(),
-	));
+    commands
+        .spawn(new_gravity_region(
+            -level_settings.gravity_mult,
+            &play_world,
+            &level_settings.into(),
+            &grav_mat,
+        ))
+        .insert((
+            Name::new(format!(
+                "gravity {}",
+                if current_up { "down" } else { "up" }
+            )),
+            RemoveWhenLeft,
+            RemoveOnReset,
+            vel.clone(),
+        ));
 }
 
 fn spawn_obstacles(
@@ -131,14 +170,14 @@ fn spawn_obstacles(
 ) {
     // create the level obstacles and the scoring region.
     let vel = Velocity {
-        linvel: level_settings.vel,
+        linvel: level_settings.item_vel,
         ..default()
     };
 
     let lvl = &level_settings;
 
-    let gap_center = lvl.center_y_range[0]
-        + fastrand::f32() * (lvl.center_y_range[1] - lvl.center_y_range[0]);
+    let gap_center =
+        lvl.center_y_range[0] + fastrand::f32() * (lvl.center_y_range[1] - lvl.center_y_range[0]);
     let gap_height = lvl.gap_height_range[0]
         + fastrand::f32() * (lvl.gap_height_range[1] - lvl.gap_height_range[0]);
 
@@ -200,9 +239,9 @@ fn spawn_obstacles(
 fn remove_invisible_objects(
     mut commands: Commands,
     query: Query<
-            (Entity, &GlobalTransform, Option<&Handle<Mesh>>),
+        (Entity, &GlobalTransform, Option<&Handle<Mesh>>),
         (With<RemoveWhenLeft>, With<Collider>),
-	>,
+    >,
     mut meshes: ResMut<Assets<Mesh>>,
     play_world: Res<WorldSettings>,
     level_settings: Res<LevelSettings>,
@@ -217,63 +256,52 @@ fn remove_invisible_objects(
     }
 }
 
-/// Send a reset event when the player collides into an obstacle.
-fn reset_on_collision(
-    mut resets: EventWriter<ResetEvent>,
-    mut collisions: EventReader<HitObstacleEvent>,
-) {
-    for _ in collisions.iter() {
-        resets.send(ResetEvent);
-        return;
-    }
-}
-
 /// Kill all marked level items on reset.
 fn reset_level(
     mut commands: Commands,
     items: Query<Entity, With<RemoveOnReset>>,
     mut level_timer: ResMut<LevelTimer>,
-    mut resets: EventReader<ResetEvent>,
+    mut level: ResMut<LevelSettings>,
+    mut rapier_config: ResMut<RapierConfiguration>,
 ) {
-    for _ in resets.iter() {
-        for ent in items.iter() {
-            commands.entity(ent).despawn();
-        }
-        level_timer.timer.reset();
+    for ent in items.iter() {
+        commands.entity(ent).despawn();
     }
+    level_timer.timer.reset();
+    level.reset();
+    level.sync_to_rapier(&mut rapier_config);
 }
 
-// struct for level-based plugins
+/// struct for level-based plugins
 pub struct LevelPlugin;
 
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
-	let initial_secs_per_item = 2.0;
+        let initial_secs_per_item = 2.0;
 
-	let mut timer = Timer::from_seconds(initial_secs_per_item, TimerMode::Repeating);
-	timer.tick(Duration::from_secs_f32(initial_secs_per_item - 0.01));
+        let mut timer = Timer::from_seconds(initial_secs_per_item, TimerMode::Repeating);
+        timer.tick(Duration::from_secs_f32(initial_secs_per_item - 0.01));
 
         app.insert_resource(LevelSettings::default())
-            .insert_resource(LevelTimer {
-                timer
-            })
+            .insert_resource(LevelTimer { timer })
             .add_systems(
                 Startup,
                 setup_level_settings.in_set(LevelSet).after(WorldSet),
             )
             .add_systems(PreUpdate, update_timer)
-            .add_systems(OnEnter(GameState::Playing), |mut evs: EventWriter<ResetEvent>| {
-		evs.send(ResetEvent)
-	    })
+            .add_systems(
+                OnEnter(GameState::Playing),
+                |mut evs: EventWriter<ResetEvent>| evs.send(ResetEvent),
+            )
             .add_systems(
                 Update,
-                (
-                    remove_invisible_objects,
-                    spawn_items,
-                    reset_on_collision,
-                )
+                (remove_invisible_objects, 
+		 spawn_items, 
+		 send_reset_event.run_if(on_event::<HitObstacleEvent>()),
+		 spawn_obstacles.run_if(input_just_pressed(KeyCode::O)),
+		 spawn_gravity_region.run_if(input_just_pressed(KeyCode::G)))
                     .run_if(in_state(GameState::Playing)),
             )
-            .add_systems(PostUpdate, reset_level);
+            .add_systems(PostUpdate, reset_level.run_if(on_event::<ResetEvent>()));
     }
 }
