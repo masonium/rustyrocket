@@ -128,22 +128,19 @@ fn keep_player_in_bounds(
 fn reset_player(
     mut commands: Commands,
     mut player: Query<(Entity, &mut Transform, &mut Velocity, &mut PlayerAnim), With<Player>>,
-    mut reset_events: EventReader<ResetEvent>,
 ) {
-    for _ in reset_events.iter() {
-        let mut count = 0;
-        for (ent, mut trans, mut vel, mut anim) in player.iter_mut() {
-            count += 1;
-            trans.translation = Vec3::ZERO;
-            vel.linvel = Vec2::ZERO;
-            anim.rotation_target = PlayerRotTarget::Up;
-            trans.rotation.z = 0.0;
-            if let Some(mut e) = commands.get_entity(ent) {
-                e.remove::<Animator<Transform>>();
-            }
+    let mut count = 0;
+    for (ent, mut trans, mut vel, mut anim) in player.iter_mut() {
+        count += 1;
+        trans.translation = Vec3::ZERO;
+        vel.linvel = Vec2::ZERO;
+        anim.rotation_target = PlayerRotTarget::Up;
+        trans.rotation.z = 0.0;
+        if let Some(mut e) = commands.get_entity(ent) {
+            e.remove::<Animator<Transform>>();
         }
-        println!("Reset {count} player.");
     }
+    println!("Reset {count} player.");
 }
 
 /// Change the rotation based on a gravit multiplier.
@@ -210,9 +207,6 @@ pub fn anim_complete(
     mut ev_reader: EventReader<TweenCompleted>,
     player_q: Query<(&Animator<Transform>, &Transform), With<Player>>,
 ) {
-    for p in player_q.iter() {
-        //println!("{}", p.0.tweenable().times_completed());
-    }
     for ev in ev_reader.iter() {
         println!("Completed animation");
         if let Ok(_) = player_q.get(ev.entity) {}
@@ -238,6 +232,6 @@ impl Plugin for PlayerPlugin {
                 )
                     .run_if(in_state(GameState::Playing)),
             )
-            .add_systems(PostUpdate, reset_player);
+            .add_systems(PostUpdate, reset_player.run_if(on_event::<ResetEvent>()));
     }
 }
