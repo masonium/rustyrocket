@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_asset_loader::{asset_collection::AssetCollection, loading_state::LoadingStateAppExt};
 use bevy_rapier2d::prelude::*;
 
-use crate::{GameState, WorldSettings, ResetEvent};
+use crate::{GameState, ResetEvent, WorldSettings};
 
 const JUMP_ANIM_FRAMES: u32 = 4;
 const JUMP_ANIM_TIME: f32 = 0.1;
@@ -29,8 +29,7 @@ struct PlayerAnim {
     state: PlayerState,
 }
 
-fn spawn_player(mut commands: Commands, 
-		sprites: Res<SpriteCollection>) {
+fn spawn_player(mut commands: Commands, sprites: Res<SpriteCollection>) {
     commands.spawn((
         SpriteSheetBundle {
             sprite: TextureAtlasSprite {
@@ -102,16 +101,16 @@ fn keep_player_in_bounds(
 /// Reset the player position.
 fn reset_player(
     mut player: Query<(&mut Transform, &mut Velocity), With<Player>>,
-    mut reset_events: EventReader<ResetEvent>,) {
+    mut reset_events: EventReader<ResetEvent>,
+) {
     for _ in reset_events.iter() {
-	for (mut trans, mut vel) in player.iter_mut() {
-	    trans.translation = Vec3::ZERO;
-	    vel.linvel = Vec2::ZERO;
-	}
+        for (mut trans, mut vel) in player.iter_mut() {
+            trans.translation = Vec3::ZERO;
+            vel.linvel = Vec2::ZERO;
+        }
     }
-
 }
-    
+
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
