@@ -1,5 +1,5 @@
 use bevy::{
-    input::common_conditions::{input_toggle_active, input_just_pressed},
+    input::common_conditions::{input_just_pressed, input_toggle_active},
     log::{Level, LogPlugin},
     prelude::*,
     render::render_resource::{FilterMode, SamplerDescriptor},
@@ -8,6 +8,7 @@ use bevy::{
 use bevy_asset_loader::loading_state::{LoadingState, LoadingStateAppExt};
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use bevy_rapier2d::{prelude::*, render::RapierDebugRenderPlugin};
+use bevy_tweening::TweeningPlugin;
 use rustyrocket::{
     gravity_shift::GravityShiftPlugin,
     level::{LevelPlugin, LevelSettings},
@@ -15,7 +16,7 @@ use rustyrocket::{
     player::PlayerPlugin,
     score::{Score, ScorePlugin},
     scoring_region::ScoringRegionPlugin,
-    ResetEvent, WorldSet, WorldSettings, send_reset_event,
+    send_reset_event, ResetEvent, WorldSet, WorldSettings,
 };
 
 use rustyrocket::GameState;
@@ -37,12 +38,6 @@ fn setup_physics(
     physics.bounds.min = -physics.bounds.max;
 }
 
-fn reset_on_r(keys: Res<Input<KeyCode>>, mut reset_events: EventWriter<ResetEvent>) {
-    if keys.just_pressed(KeyCode::R) {
-        reset_events.send(ResetEvent);
-    }
-}
-
 fn main() {
     App::new()
         .add_plugins(
@@ -51,7 +46,7 @@ fn main() {
                     primary_window: Some(Window {
                         title: "Rusty Rocket".to_string(),
                         resolution: WindowResolution::new(1024.0, 1024.0 * 9.0 / 16.0),
-			resizable: false,
+                        resizable: false,
                         ..default()
                     }),
                     ..default()
@@ -101,12 +96,12 @@ fn main() {
         .add_plugins(ScorePlugin)
         .add_plugins(ScoringRegionPlugin)
         .add_plugins(GravityShiftPlugin)
+        .add_plugins(TweeningPlugin)
         .add_systems(Startup, (setup_camera, setup_physics).in_set(WorldSet))
         .add_systems(
             Update,
             send_reset_event
-		.run_if(in_state(GameState::Playing)
-			.and_then(input_just_pressed(KeyCode::R))),
+                .run_if(in_state(GameState::Playing).and_then(input_just_pressed(KeyCode::R))),
         )
         .add_systems(Update, (close_on_esc,))
         .run()

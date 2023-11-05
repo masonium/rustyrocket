@@ -18,7 +18,7 @@ pub struct GravityEvent {
     region: Entity,
 
     /// new gravity multipler to set in settings
-    gravity_mult: f32,
+    pub gravity_mult: f32,
 }
 
 #[derive(Default, Resource)]

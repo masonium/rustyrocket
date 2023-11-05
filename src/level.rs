@@ -1,13 +1,13 @@
 use std::time::Duration;
 
-use bevy::{prelude::*, input::common_conditions::input_just_pressed};
+use bevy::{input::common_conditions::input_just_pressed, prelude::*};
 use bevy_rapier2d::prelude::*;
 
 use crate::{
     gravity_shift::{new_gravity_region, GravityMaterials},
     obstacle::{new_obstacle, HitObstacleEvent, ObstacleAssets, RegionRef},
     scoring_region::new_scoring_region,
-    GameState, LevelSet, ResetEvent, WorldSet, WorldSettings, send_reset_event,
+    send_reset_event, GameState, LevelSet, ResetEvent, WorldSet, WorldSettings,
 };
 
 #[derive(Resource, Reflect, Default)]
@@ -31,7 +31,7 @@ pub struct LevelSettings {
     pub gravity_width: f32,
     pub start_offset: f32,
 
-    /// Spawn rate.
+    /// Spawn rate for obstacles and other spawned items in the level.
     seconds_per_item: f32,
 
     pub gravity_mult: f32,
@@ -48,22 +48,22 @@ impl LevelSettings {
         self.seconds_per_item = 2.0;
         self.num_items = 0;
         self.since_last_gravity = 0;
-	self.gravity_mult = 1.0;
+        self.gravity_mult = 1.0;
     }
 
     /// Return the current jump vector, taking the gravity mult into account.
     pub fn jump_vector(&self) -> Vec2 {
-	self.base_jump_vel * self.gravity_mult
+        self.base_jump_vel * self.gravity_mult
     }
 
     /// return the current gravity vector, taking the gravity mult into account.
     pub fn gravity_vector(&self) -> Vec2 {
-	self.base_gravity * self.gravity_mult
+        self.base_gravity * self.gravity_mult
     }
 
     /// Sync the level settings to rapier.
     pub fn sync_to_rapier(&self, rc: &mut ResMut<RapierConfiguration>) {
-	rc.gravity = self.base_gravity * self.gravity_mult;
+        rc.gravity = self.base_gravity * self.gravity_mult;
     }
 }
 
@@ -104,7 +104,6 @@ fn setup_level_settings(
 fn update_timer(time: Res<Time>, mut timer: ResMut<LevelTimer>) {
     timer.timer.tick(time.delta());
 }
-
 
 /// On a timer, spawn one of many items.
 fn spawn_items(
@@ -295,11 +294,13 @@ impl Plugin for LevelPlugin {
             )
             .add_systems(
                 Update,
-                (remove_invisible_objects, 
-		 spawn_items, 
-		 send_reset_event.run_if(on_event::<HitObstacleEvent>()),
-		 spawn_obstacles.run_if(input_just_pressed(KeyCode::O)),
-		 spawn_gravity_region.run_if(input_just_pressed(KeyCode::G)))
+                (
+                    remove_invisible_objects,
+                    spawn_items,
+                    send_reset_event.run_if(on_event::<HitObstacleEvent>()),
+                    spawn_obstacles.run_if(input_just_pressed(KeyCode::O)),
+                    spawn_gravity_region.run_if(input_just_pressed(KeyCode::G)),
+                )
                     .run_if(in_state(GameState::Playing)),
             )
             .add_systems(PostUpdate, reset_level.run_if(on_event::<ResetEvent>()));

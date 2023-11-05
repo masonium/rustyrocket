@@ -1,11 +1,19 @@
+use std::time::Duration;
+
 use bevy::prelude::*;
 use bevy_asset_loader::{asset_collection::AssetCollection, loading_state::LoadingStateAppExt};
 use bevy_rapier2d::prelude::*;
+use bevy_tweening::{lens::TransformRotateZLens, Animator, EaseFunction, Tween, TweenCompleted};
 
-use crate::{GameState, ResetEvent, WorldSettings, level::LevelSettings};
+use crate::{
+    gravity_shift::GravityEvent, level::LevelSettings, GameState, ResetEvent, WorldSettings,
+};
 
 const JUMP_ANIM_FRAMES: u32 = 4;
 const JUMP_ANIM_TIME: f32 = 0.1;
+
+/// Time in seconds to complete a full rotation.
+const ROTATION_TIME: f32 = 0.25;
 
 #[derive(Resource, AssetCollection)]
 struct SpriteCollection {
@@ -23,10 +31,27 @@ enum PlayerState {
 #[derive(Component)]
 pub struct Player;
 
+#[derive(Component, Default, Reflect, PartialEq, Eq, Clone, Copy, Debug)]
+enum PlayerRotTarget {
+    #[default]
+    Up,
+    Down,
+}
+
+impl PlayerRotTarget {
+    fn rot(&self) -> f32 {
+        match self {
+            PlayerRotTarget::Down => std::f32::consts::PI,
+            PlayerRotTarget::Up => 0.0,
+        }
+    }
+}
+
 #[derive(Component, Reflect, PartialEq)]
 struct PlayerAnim {
     tick: f32,
     state: PlayerState,
+    rotation_target: PlayerRotTarget,
 }
 
 /// Create the initial player.
@@ -44,6 +69,7 @@ fn spawn_player(mut commands: Commands, sprites: Res<SpriteCollection>) {
         PlayerAnim {
             tick: 0.0,
             state: PlayerState::Jumping,
+            rotation_target: PlayerRotTarget::Up,
         },
         Player,
         Collider::cuboid(20.0, 28.0),
@@ -100,14 +126,96 @@ fn keep_player_in_bounds(
 
 /// Reset the player position.
 fn reset_player(
-    mut player: Query<(&mut Transform, &mut Velocity), With<Player>>,
+    mut commands: Commands,
+    mut player: Query<(Entity, &mut Transform, &mut Velocity, &mut PlayerAnim), With<Player>>,
     mut reset_events: EventReader<ResetEvent>,
 ) {
     for _ in reset_events.iter() {
-        for (mut trans, mut vel) in player.iter_mut() {
+        let mut count = 0;
+        for (ent, mut trans, mut vel, mut anim) in player.iter_mut() {
+            count += 1;
             trans.translation = Vec3::ZERO;
             vel.linvel = Vec2::ZERO;
+            anim.rotation_target = PlayerRotTarget::Up;
+            trans.rotation.z = 0.0;
+            if let Some(mut e) = commands.get_entity(ent) {
+                e.remove::<Animator<Transform>>();
+            }
         }
+        println!("Reset {count} player.");
+    }
+}
+
+/// Change the rotation based on a gravit multiplier.
+fn rotate_player_on_gravity_change(
+    mut commands: Commands,
+    mut player_q: Query<
+        (
+            Entity,
+            &Transform,
+            &mut PlayerAnim,
+            Option<&Animator<Transform>>,
+        ),
+        With<Player>,
+    >,
+    mut gevs: EventReader<GravityEvent>,
+) {
+    // Check the current ratio, and see if we need to add a tweener.
+    for ev in gevs.iter() {
+        let target_rotation = if ev.gravity_mult > 0.0 {
+            PlayerRotTarget::Up
+        } else {
+            PlayerRotTarget::Down
+        };
+
+        // check to see if we're already rotating to there
+        for (ent, trans, mut anim, animator) in player_q.iter_mut() {
+            println!("rotation change on player with target {target_rotation:?}");
+            if anim.rotation_target != target_rotation {
+                // Delete an existing tweener, then add a new a
+                // tweener. with the correct target.
+                if animator.is_some() {
+                    commands.entity(ent).remove::<Animator<Transform>>();
+                }
+
+                let current_rot = trans.rotation.z;
+                let anim_time = (current_rot - target_rotation.rot()).abs() / std::f32::consts::PI
+                    * ROTATION_TIME;
+
+                let new_tween = Tween::new(
+                    EaseFunction::QuadraticInOut,
+                    Duration::from_secs_f32(anim_time),
+                    TransformRotateZLens {
+                        start: current_rot,
+                        end: target_rotation.rot(),
+                    },
+                );
+
+                println!(
+                    "changing tween to ({} -> {}) in {anim_time:.2}s",
+                    current_rot,
+                    target_rotation.rot()
+                );
+
+                // Add a new animator with the target proper target.
+                commands.entity(ent).insert(Animator::new(new_tween));
+
+                anim.rotation_target = target_rotation;
+            }
+        }
+    }
+}
+
+pub fn anim_complete(
+    mut ev_reader: EventReader<TweenCompleted>,
+    player_q: Query<(&Animator<Transform>, &Transform), With<Player>>,
+) {
+    for p in player_q.iter() {
+        //println!("{}", p.0.tweenable().times_completed());
+    }
+    for ev in ev_reader.iter() {
+        println!("Completed animation");
+        if let Ok(_) = player_q.get(ev.entity) {}
     }
 }
 
@@ -121,7 +229,13 @@ impl Plugin for PlayerPlugin {
             .add_systems(OnEnter(GameState::Playing), spawn_player)
             .add_systems(
                 Update,
-                (update_anim, handle_input, keep_player_in_bounds)
+                (
+                    update_anim,
+                    handle_input,
+                    keep_player_in_bounds,
+                    rotate_player_on_gravity_change,
+                    anim_complete,
+                )
                     .run_if(in_state(GameState::Playing)),
             )
             .add_systems(PostUpdate, reset_player);
