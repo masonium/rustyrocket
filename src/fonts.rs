@@ -6,11 +6,11 @@ use crate::GameState;
 #[derive(AssetCollection, Resource)]
 pub struct FontsCollection {
     /// font for displaying the score
-    #[asset(path = "fonts/SpeedrushRegular-qZWp6.otf")]
+    #[asset(path = "fonts/PixelOperatorMono-Bold.ttf")]
     pub score_font: Handle<Font>,
 
     /// font for the pause menu, possibly
-    #[asset(path = "fonts/SpeedrushRegular-qZWp6.otf")]
+    #[asset(path = "fonts/PixelOperatorMono.ttf")]
     _menu_font: Handle<Font>,
 }
 
