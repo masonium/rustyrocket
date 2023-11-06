@@ -40,6 +40,12 @@ fn setup_physics(
     physics.bounds.min = -physics.bounds.max;
 }
 
+fn enable_physics_debugging(
+    mut debug_context: ResMut<DebugRenderContext>
+) {
+    debug_context.enabled = !debug_context.enabled;
+}
+
 fn main() {
     App::new()
         .add_plugins(
@@ -68,7 +74,7 @@ fn main() {
         )
         .add_plugins((
             RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(96.0),
-            //RapierDebugRenderPlugin::default(),
+            RapierDebugRenderPlugin { enabled: false, ..default() },
         ))
         .add_plugins(ObstaclePlugin)
         .insert_resource(WorldSettings::default())
@@ -89,6 +95,10 @@ fn main() {
             ResourceInspectorPlugin::<Score>::default()
                 .run_if(input_toggle_active(false, KeyCode::S)),
         )
+        .add_systems(
+	    Update,
+	    enable_physics_debugging.run_if(input_just_pressed(KeyCode::D))
+	)
         .add_state::<GameState>()
         .add_loading_state(
             LoadingState::new(GameState::AssetLoading).continue_to_state(GameState::Ready),

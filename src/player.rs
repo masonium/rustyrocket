@@ -3,7 +3,7 @@ use std::time::Duration;
 use bevy::prelude::*;
 use bevy_asset_loader::{asset_collection::AssetCollection, loading_state::LoadingStateAppExt};
 use bevy_rapier2d::prelude::*;
-use bevy_tweening::{lens::{TransformRotateZLens, TransformRotationLens}, Animator, EaseFunction, Tween, TweenCompleted};
+use bevy_tweening::{lens::TransformRotationLens, Animator, EaseFunction, Tween, TweenCompleted};
 
 use crate::{
     gravity_shift::GravityEvent, level::LevelSettings, GameState, ResetEvent, WorldSettings, LevelSet,
@@ -123,8 +123,7 @@ fn signal_player_out_of_bounds(
     mut oob: EventWriter<OutOfBounds>,
     play_world: Res<WorldSettings>,
 ) {
-    for mut trans in player.iter_mut() {
-        // trans.translation += moveable.linvel * time.delta_seconds();
+    for trans in player.iter_mut() {
         if !play_world.bounds.contains(trans.translation.truncate()) {
 	    oob.send(OutOfBounds);
         }

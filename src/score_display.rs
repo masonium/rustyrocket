@@ -1,5 +1,4 @@
 use bevy::{prelude::*, sprite::Anchor};
-use bevy_asset_loader::{asset_collection::AssetCollection, loading_state::LoadingStateAppExt};
 
 use crate::{fonts::FontsCollection, score::Score, GameState, WorldSettings};
 

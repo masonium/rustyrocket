@@ -11,7 +11,7 @@ pub struct FontsCollection {
 
     /// font for the pause menu, possibly
     #[asset(path = "fonts/SpeedrushRegular-qZWp6.otf")]
-    menu_font: Handle<Font>,
+    _menu_font: Handle<Font>,
 }
 
 pub struct GameFontsPlugin;
