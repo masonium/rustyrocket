@@ -3,10 +3,10 @@ use std::time::Duration;
 use bevy::prelude::*;
 use bevy_asset_loader::{asset_collection::AssetCollection, loading_state::LoadingStateAppExt};
 use bevy_rapier2d::prelude::*;
-use bevy_tweening::{lens::TransformRotateZLens, Animator, EaseFunction, Tween, TweenCompleted};
+use bevy_tweening::{lens::{TransformRotateZLens, TransformRotationLens}, Animator, EaseFunction, Tween, TweenCompleted};
 
 use crate::{
-    gravity_shift::GravityEvent, level::LevelSettings, GameState, ResetEvent, WorldSettings,
+    gravity_shift::GravityEvent, level::LevelSettings, GameState, ResetEvent, WorldSettings, LevelSet,
 };
 
 const JUMP_ANIM_FRAMES: u32 = 4;
@@ -31,6 +31,9 @@ enum PlayerState {
 #[derive(Component)]
 pub struct Player;
 
+#[derive(Clone, PartialEq, Eq, Hash, Debug, SystemSet)]
+pub struct PlayerSet;
+
 #[derive(Component, Default, Reflect, PartialEq, Eq, Clone, Copy, Debug)]
 enum PlayerRotTarget {
     #[default]
@@ -39,10 +42,10 @@ enum PlayerRotTarget {
 }
 
 impl PlayerRotTarget {
-    fn rot(&self) -> f32 {
+    fn rot(&self) -> Quat {
         match self {
-            PlayerRotTarget::Down => std::f32::consts::PI,
-            PlayerRotTarget::Up => 0.0,
+            PlayerRotTarget::Down => Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI),
+            PlayerRotTarget::Up => Quat::from_axis_angle(Vec3::Z, 0.0),
         }
     }
 }
@@ -53,6 +56,9 @@ struct PlayerAnim {
     state: PlayerState,
     rotation_target: PlayerRotTarget,
 }
+
+#[derive(Event)]
+pub struct OutOfBounds;
 
 /// Create the initial player.
 fn spawn_player(mut commands: Commands, sprites: Res<SpriteCollection>) {
@@ -112,14 +118,15 @@ fn update_anim(mut player: Query<(&mut PlayerAnim, &mut TextureAtlasSprite)>, ti
 
 /// Move the player back to the center of the play window if the
 /// player center leaves the environment bounding box.
-fn keep_player_in_bounds(
+fn signal_player_out_of_bounds(
     mut player: Query<&mut Transform, With<Player>>,
+    mut oob: EventWriter<OutOfBounds>,
     play_world: Res<WorldSettings>,
 ) {
     for mut trans in player.iter_mut() {
         // trans.translation += moveable.linvel * time.delta_seconds();
         if !play_world.bounds.contains(trans.translation.truncate()) {
-            trans.translation = Vec3::ZERO;
+	    oob.send(OutOfBounds);
         }
     }
 }
@@ -143,7 +150,19 @@ fn reset_player(
     println!("Reset {count} player.");
 }
 
-/// Change the rotation based on a gravit multiplier.
+/// System to kill and spawn the player.
+fn respawn_player(
+    mut commands: Commands,
+    sprites: Res<SpriteCollection>,
+    player: Query<Entity, With<Player>>,) {
+    for ent in player.iter() {
+	commands.entity(ent).despawn();
+    }
+    spawn_player(commands, sprites);
+}
+    
+
+/// Change the rotation based on a gravity multiplier.
 fn rotate_player_on_gravity_change(
     mut commands: Commands,
     mut player_q: Query<
@@ -167,7 +186,6 @@ fn rotate_player_on_gravity_change(
 
         // check to see if we're already rotating to there
         for (ent, trans, mut anim, animator) in player_q.iter_mut() {
-            println!("rotation change on player with target {target_rotation:?}");
             if anim.rotation_target != target_rotation {
                 // Delete an existing tweener, then add a new a
                 // tweener. with the correct target.
@@ -175,23 +193,18 @@ fn rotate_player_on_gravity_change(
                     commands.entity(ent).remove::<Animator<Transform>>();
                 }
 
-                let current_rot = trans.rotation.z;
-                let anim_time = (current_rot - target_rotation.rot()).abs() / std::f32::consts::PI
+		let current_rot = trans.rotation;
+		let target_rot = target_rotation.rot();
+                let anim_time = current_rot.angle_between(target_rot).abs() / std::f32::consts::PI
                     * ROTATION_TIME;
 
                 let new_tween = Tween::new(
                     EaseFunction::QuadraticInOut,
                     Duration::from_secs_f32(anim_time),
-                    TransformRotateZLens {
+                    TransformRotationLens {
                         start: current_rot,
                         end: target_rotation.rot(),
                     },
-                );
-
-                println!(
-                    "changing tween to ({} -> {}) in {anim_time:.2}s",
-                    current_rot,
-                    target_rotation.rot()
                 );
 
                 // Add a new animator with the target proper target.
@@ -203,6 +216,7 @@ fn rotate_player_on_gravity_change(
     }
 }
 
+/// System for when the animation is complete.
 pub fn anim_complete(
     mut ev_reader: EventReader<TweenCompleted>,
     player_q: Query<(&Animator<Transform>, &Transform), With<Player>>,
@@ -219,19 +233,16 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<PlayerState>()
             .register_type::<PlayerAnim>()
+            .add_event::<OutOfBounds>()
             .add_collection_to_loading_state::<_, SpriteCollection>(GameState::AssetLoading)
-            .add_systems(OnEnter(GameState::Playing), spawn_player)
-            .add_systems(
-                Update,
-                (
+            .add_systems(OnEnter(GameState::Ready), respawn_player.after(LevelSet))
+            .add_systems(Update, (
                     update_anim,
                     handle_input,
-                    keep_player_in_bounds,
+                    signal_player_out_of_bounds,
                     rotate_player_on_gravity_change,
                     anim_complete,
-                )
-                    .run_if(in_state(GameState::Playing)),
-            )
+            ).in_set(PlayerSet).run_if(in_state(GameState::Playing)))
             .add_systems(PostUpdate, reset_player.run_if(on_event::<ResetEvent>()));
     }
 }

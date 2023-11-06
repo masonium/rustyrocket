@@ -7,7 +7,7 @@ use crate::{
     gravity_shift::{new_gravity_region, GravityMaterials},
     obstacle::{new_obstacle, HitObstacleEvent, ObstacleAssets, RegionRef},
     scoring_region::new_scoring_region,
-    send_reset_event, GameState, LevelSet, ResetEvent, WorldSet, WorldSettings,
+    send_reset_event, GameState, LevelSet, ResetEvent, WorldSet, WorldSettings, player::{OutOfBounds, PlayerSet},
 };
 
 #[derive(Resource, Reflect, Default)]
@@ -262,6 +262,7 @@ fn reset_level(
     mut level_timer: ResMut<LevelTimer>,
     mut level: ResMut<LevelSettings>,
     mut rapier_config: ResMut<RapierConfiguration>,
+    mut app_state: ResMut<NextState<GameState>>,
 ) {
     for ent in items.iter() {
         commands.entity(ent).despawn();
@@ -269,6 +270,20 @@ fn reset_level(
     level_timer.timer.reset();
     level.reset();
     level.sync_to_rapier(&mut rapier_config);
+
+    app_state.set(GameState::Ready);
+}
+
+fn in_ready_level(mut rapier: ResMut<RapierConfiguration>) {
+    rapier.physics_pipeline_active = false;
+}
+
+fn in_start_level(mut rapier: ResMut<RapierConfiguration>) {
+    rapier.physics_pipeline_active = true;
+}
+
+fn start_level(mut app_state: ResMut<NextState<GameState>>) {
+    app_state.set(GameState::Playing);
 }
 
 /// struct for level-based plugins
@@ -289,7 +304,7 @@ impl Plugin for LevelPlugin {
             )
             .add_systems(PreUpdate, update_timer)
             .add_systems(
-                OnEnter(GameState::Playing),
+                OnExit(GameState::AssetLoading),
                 |mut evs: EventWriter<ResetEvent>| evs.send(ResetEvent),
             )
             .add_systems(
@@ -300,9 +315,20 @@ impl Plugin for LevelPlugin {
                     send_reset_event.run_if(on_event::<HitObstacleEvent>()),
                     spawn_obstacles.run_if(input_just_pressed(KeyCode::O)),
                     spawn_gravity_region.run_if(input_just_pressed(KeyCode::G)),
-                )
-                    .run_if(in_state(GameState::Playing)),
+                ).run_if(in_state(GameState::Playing)),
             )
+            .add_systems(
+		OnEnter(GameState::Ready),
+		in_ready_level)
+            .add_systems(
+		Update,
+		start_level.run_if(in_state(GameState::Ready).and_then(input_just_pressed(KeyCode::Space))))
+            .add_systems(
+		OnEnter(GameState::Playing),
+		in_start_level)
+            .add_systems(
+		Update,
+		send_reset_event.after(PlayerSet).run_if(on_event::<OutOfBounds>()))
             .add_systems(PostUpdate, reset_level.run_if(on_event::<ResetEvent>()));
     }
 }

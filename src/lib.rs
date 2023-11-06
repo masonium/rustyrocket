@@ -1,8 +1,10 @@
+pub mod fonts;
 pub mod gravity_shift;
 pub mod level;
 pub mod obstacle;
 pub mod player;
 pub mod score;
+pub mod score_display;
 pub mod scoring_region;
 use bevy::prelude::*;
 
@@ -24,6 +26,7 @@ impl Default for WorldSettings {
 pub enum GameState {
     #[default]
     AssetLoading,
+    Ready,
     Playing,
 }
 

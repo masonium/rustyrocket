@@ -10,11 +10,13 @@ use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use bevy_rapier2d::{prelude::*, render::RapierDebugRenderPlugin};
 use bevy_tweening::TweeningPlugin;
 use rustyrocket::{
+    fonts::GameFontsPlugin,
     gravity_shift::GravityShiftPlugin,
     level::{LevelPlugin, LevelSettings},
     obstacle::ObstaclePlugin,
     player::PlayerPlugin,
     score::{Score, ScorePlugin},
+    score_display::ScoreDisplayPlugin,
     scoring_region::ScoringRegionPlugin,
     send_reset_event, ResetEvent, WorldSet, WorldSettings,
 };
@@ -66,7 +68,7 @@ fn main() {
         )
         .add_plugins((
             RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(96.0),
-            RapierDebugRenderPlugin::default(),
+            //RapierDebugRenderPlugin::default(),
         ))
         .add_plugins(ObstaclePlugin)
         .insert_resource(WorldSettings::default())
@@ -89,7 +91,7 @@ fn main() {
         )
         .add_state::<GameState>()
         .add_loading_state(
-            LoadingState::new(GameState::AssetLoading).continue_to_state(GameState::Playing),
+            LoadingState::new(GameState::AssetLoading).continue_to_state(GameState::Ready),
         )
         .add_plugins(PlayerPlugin)
         .add_plugins(LevelPlugin)
@@ -97,6 +99,8 @@ fn main() {
         .add_plugins(ScoringRegionPlugin)
         .add_plugins(GravityShiftPlugin)
         .add_plugins(TweeningPlugin)
+        .add_plugins(GameFontsPlugin)
+        .add_plugins(ScoreDisplayPlugin)
         .add_systems(Startup, (setup_camera, setup_physics).in_set(WorldSet))
         .add_systems(
             Update,
