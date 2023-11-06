@@ -130,14 +130,12 @@ fn signal_player_out_of_bounds(
     }
 }
 
-/// Reset the player position.
+/// Reset the player position, animation, rotation state.
 fn reset_player(
     mut commands: Commands,
     mut player: Query<(Entity, &mut Transform, &mut Velocity, &mut PlayerAnim), With<Player>>,
 ) {
-    let mut count = 0;
     for (ent, mut trans, mut vel, mut anim) in player.iter_mut() {
-        count += 1;
         trans.translation = Vec3::ZERO;
         vel.linvel = Vec2::ZERO;
         anim.rotation_target = PlayerRotTarget::Up;
@@ -146,7 +144,6 @@ fn reset_player(
             e.remove::<Animator<Transform>>();
         }
     }
-    println!("Reset {count} player.");
 }
 
 /// System to kill and spawn the player.

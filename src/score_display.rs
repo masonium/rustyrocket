@@ -26,9 +26,13 @@ fn setup_score(mut commands: Commands, world: Res<WorldSettings>, fonts: Res<Fon
     ));
 }
 
+
+/// System to update the score display.
 fn update_score(score: ResMut<Score>, mut query: Query<&mut Text, With<ScoreDisplay>>) {
-    for mut score_text in query.iter_mut() {
-        score_text.sections[0].value = format!("Score: {:03}", score.score);
+    if score.is_changed() {
+	for mut score_text in query.iter_mut() {
+            score_text.sections[0].value = format!("Score: {:03}", score.score);
+	}
     }
 }
 
