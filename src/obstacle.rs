@@ -84,11 +84,11 @@ fn setup_obstacle_assets(
     obs_mat.base_mesh = meshes.add(Mesh::from(shape::Quad::new(quad_dim)));
 
     obs_mat.enter_mat = materials.add(ColorMaterial {
-        color: Color::from(Color::rgba(0.6, 0.2, 0.0, 1.0)),
+        color: Color::rgba(0.6, 0.2, 0.0, 1.0),
         ..default()
     });
     obs_mat.exit_mat = materials.add(ColorMaterial {
-        color: Color::from(Color::rgba(0.6, 0.6, 0.0, 1.0)),
+        color: Color::rgba(0.6, 0.6, 0.0, 1.0),
         ..default()
     });
 }

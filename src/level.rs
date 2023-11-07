@@ -6,8 +6,9 @@ use bevy_rapier2d::prelude::*;
 use crate::{
     gravity_shift::{new_gravity_region, GravityMaterials},
     obstacle::{new_obstacle, HitObstacleEvent, ObstacleAssets, RegionRef},
+    player::{OutOfBounds, PlayerSet},
     scoring_region::new_scoring_region,
-    send_reset_event, GameState, LevelSet, ResetEvent, WorldSet, WorldSettings, player::{OutOfBounds, PlayerSet},
+    send_reset_event, GameState, LevelSet, ResetEvent, WorldSet, WorldSettings,
 };
 
 #[derive(Resource, Reflect, Default)]
@@ -121,7 +122,7 @@ fn spawn_items(
         level_settings.num_items += 1;
         if should_spawn_obstacle {
             level_settings.since_last_gravity += 1;
-            spawn_obstacles(commands, level_settings.into(), meshes, play_world, obs_mat);
+            spawn_obstacles(commands, level_settings, meshes, play_world, obs_mat);
         } else {
             level_settings.since_last_gravity = 0;
             spawn_gravity_region(commands, level_settings, play_world, grav_mat);
@@ -156,7 +157,7 @@ fn spawn_gravity_region(
             )),
             RemoveWhenLeft,
             RemoveOnReset,
-            vel.clone(),
+            vel,
         ));
 }
 
@@ -195,7 +196,7 @@ fn spawn_obstacles(
             ),
             Vec2::new(scoring_gap_width, scoring_gap_height),
         ))
-        .insert((RemoveWhenLeft, RemoveOnReset, vel.clone()))
+        .insert((RemoveWhenLeft, RemoveOnReset, vel))
         .id();
 
     let ls: Res<LevelSettings> = level_settings.into();
@@ -214,7 +215,7 @@ fn spawn_obstacles(
             RegionRef { region },
             RemoveWhenLeft,
             RemoveOnReset,
-            vel.clone(),
+            vel,
         ));
     commands
         .spawn(new_obstacle(
@@ -230,7 +231,7 @@ fn spawn_obstacles(
             RegionRef { region },
             RemoveWhenLeft,
             RemoveOnReset,
-            vel.clone(),
+            vel,
         ));
 }
 
@@ -315,20 +316,23 @@ impl Plugin for LevelPlugin {
                     send_reset_event.run_if(on_event::<HitObstacleEvent>()),
                     spawn_obstacles.run_if(input_just_pressed(KeyCode::O)),
                     spawn_gravity_region.run_if(input_just_pressed(KeyCode::G)),
-                ).run_if(in_state(GameState::Playing)),
+                )
+                    .run_if(in_state(GameState::Playing)),
             )
+            .add_systems(OnEnter(GameState::Ready), in_ready_level)
             .add_systems(
-		OnEnter(GameState::Ready),
-		in_ready_level)
+                Update,
+                start_level.run_if(
+                    in_state(GameState::Ready).and_then(input_just_pressed(KeyCode::Space)),
+                ),
+            )
+            .add_systems(OnEnter(GameState::Playing), in_start_level)
             .add_systems(
-		Update,
-		start_level.run_if(in_state(GameState::Ready).and_then(input_just_pressed(KeyCode::Space))))
-            .add_systems(
-		OnEnter(GameState::Playing),
-		in_start_level)
-            .add_systems(
-		Update,
-		send_reset_event.after(PlayerSet).run_if(on_event::<OutOfBounds>()))
+                Update,
+                send_reset_event
+                    .after(PlayerSet)
+                    .run_if(on_event::<OutOfBounds>()),
+            )
             .add_systems(PostUpdate, reset_level.run_if(on_event::<ResetEvent>()));
     }
 }

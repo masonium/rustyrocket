@@ -73,8 +73,10 @@ fn setup_gravity_assets(
     let image = images.get_mut(&grav_assets.arrow).unwrap();
     level_settings.gravity_width = image.texture_descriptor.size.width as f32;
 
-    let mut sampler = SamplerDescriptor::default();
-    sampler.address_mode_v = AddressMode::Repeat;
+    let sampler = SamplerDescriptor {
+        address_mode_v: AddressMode::Repeat,
+        ..default()
+    };
     image.sampler_descriptor = ImageSampler::Descriptor(sampler);
 
     grav_mat.scrolling_down_mat = materials.add(ScrollingMaterial {

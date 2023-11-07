@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 pub mod fonts;
 pub mod gravity_shift;
 pub mod level;
@@ -8,18 +10,10 @@ pub mod score_display;
 pub mod scoring_region;
 use bevy::prelude::*;
 
-#[derive(Resource, Reflect)]
+#[derive(Resource, Reflect, Default)]
 pub struct WorldSettings {
     /// Visible / bounds of the level world.
     pub bounds: Rect,
-}
-
-impl Default for WorldSettings {
-    fn default() -> Self {
-        Self {
-            bounds: Rect::default(),
-        }
-    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]

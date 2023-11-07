@@ -3,10 +3,11 @@ use std::time::Duration;
 use bevy::prelude::*;
 use bevy_asset_loader::{asset_collection::AssetCollection, loading_state::LoadingStateAppExt};
 use bevy_rapier2d::prelude::*;
-use bevy_tweening::{lens::TransformRotationLens, Animator, EaseFunction, Tween, TweenCompleted};
+use bevy_tweening::{lens::TransformRotationLens, Animator, EaseFunction, Tween};
 
 use crate::{
-    gravity_shift::GravityEvent, level::LevelSettings, GameState, ResetEvent, WorldSettings, LevelSet,
+    gravity_shift::GravityEvent, level::LevelSettings, GameState, LevelSet, ResetEvent,
+    WorldSettings,
 };
 
 const JUMP_ANIM_FRAMES: u32 = 4;
@@ -125,7 +126,7 @@ fn signal_player_out_of_bounds(
 ) {
     for trans in player.iter_mut() {
         if !play_world.bounds.contains(trans.translation.truncate()) {
-	    oob.send(OutOfBounds);
+            oob.send(OutOfBounds);
         }
     }
 }
@@ -150,13 +151,13 @@ fn reset_player(
 fn respawn_player(
     mut commands: Commands,
     sprites: Res<SpriteCollection>,
-    player: Query<Entity, With<Player>>,) {
+    player: Query<Entity, With<Player>>,
+) {
     for ent in player.iter() {
-	commands.entity(ent).despawn();
+        commands.entity(ent).despawn();
     }
     spawn_player(commands, sprites);
 }
-    
 
 /// Change the rotation based on a gravity multiplier.
 fn rotate_player_on_gravity_change(
@@ -189,8 +190,8 @@ fn rotate_player_on_gravity_change(
                     commands.entity(ent).remove::<Animator<Transform>>();
                 }
 
-		let current_rot = trans.rotation;
-		let target_rot = target_rotation.rot();
+                let current_rot = trans.rotation;
+                let target_rot = target_rotation.rot();
                 let anim_time = current_rot.angle_between(target_rot).abs() / std::f32::consts::PI
                     * ROTATION_TIME;
 
@@ -212,17 +213,6 @@ fn rotate_player_on_gravity_change(
     }
 }
 
-/// System for when the animation is complete.
-pub fn anim_complete(
-    mut ev_reader: EventReader<TweenCompleted>,
-    player_q: Query<(&Animator<Transform>, &Transform), With<Player>>,
-) {
-    for ev in ev_reader.iter() {
-        println!("Completed animation");
-        if let Ok(_) = player_q.get(ev.entity) {}
-    }
-}
-
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
@@ -232,13 +222,17 @@ impl Plugin for PlayerPlugin {
             .add_event::<OutOfBounds>()
             .add_collection_to_loading_state::<_, SpriteCollection>(GameState::AssetLoading)
             .add_systems(OnEnter(GameState::Ready), respawn_player.after(LevelSet))
-            .add_systems(Update, (
+            .add_systems(
+                Update,
+                (
                     update_anim,
                     handle_input,
                     signal_player_out_of_bounds,
                     rotate_player_on_gravity_change,
-                    anim_complete,
-            ).in_set(PlayerSet).run_if(in_state(GameState::Playing)))
+                )
+                    .in_set(PlayerSet)
+                    .run_if(in_state(GameState::Playing)),
+            )
             .add_systems(PostUpdate, reset_player.run_if(on_event::<ResetEvent>()));
     }
 }

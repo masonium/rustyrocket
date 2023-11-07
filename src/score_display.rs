@@ -19,20 +19,23 @@ fn setup_score(mut commands: Commands, world: Res<WorldSettings>, fonts: Res<Fon
                 },
             ),
             text_anchor: Anchor::TopLeft,
-            transform: Transform::from_translation(Vec3::new(world.bounds.min.x + 12.0, world.bounds.max.y, 0.0)),
+            transform: Transform::from_translation(Vec3::new(
+                world.bounds.min.x + 12.0,
+                world.bounds.max.y,
+                0.0,
+            )),
             ..default()
         },
         ScoreDisplay,
     ));
 }
 
-
 /// System to update the score display.
 fn update_score(score: ResMut<Score>, mut query: Query<&mut Text, With<ScoreDisplay>>) {
     if score.is_changed() {
-	for mut score_text in query.iter_mut() {
+        for mut score_text in query.iter_mut() {
             score_text.sections[0].value = format!("Score: {:03}", score.score);
-	}
+        }
     }
 }
 
