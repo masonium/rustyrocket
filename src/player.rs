@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::prelude::*;
+use bevy::{ecs::schedule::AnonymousSet, prelude::*};
 use bevy_asset_loader::{asset_collection::AssetCollection, loading_state::LoadingStateAppExt};
 use bevy_rapier2d::prelude::*;
 use bevy_tweening::{lens::TransformRotationLens, Animator, EaseFunction, Tween};
@@ -13,11 +13,13 @@ use crate::{
 const JUMP_ANIM_FRAMES: u32 = 4;
 const JUMP_ANIM_TIME: f32 = 0.1;
 
+pub const PLAYER_SCALE: f32 = 2.0;
+
 /// Time in seconds to complete a full rotation.
 const ROTATION_TIME: f32 = 0.25;
 
 #[derive(Resource, AssetCollection)]
-struct SpriteCollection {
+struct PlayerSprites {
     #[asset(texture_atlas(tile_size_x = 32., tile_size_y = 32., columns = 4, rows = 1))]
     #[asset(path = "images/rocketman.png")]
     player_atlas: Handle<TextureAtlas>,
@@ -59,17 +61,24 @@ struct PlayerAnim {
 }
 
 #[derive(Event)]
-pub struct OutOfBounds;
+pub struct OutOfBoundsEvent;
 
 /// Create the initial player.
-fn spawn_player(mut commands: Commands, sprites: Res<SpriteCollection>) {
+fn spawn_player(
+    mut commands: Commands,
+    atlases: Res<Assets<TextureAtlas>>,
+    sprites: Res<PlayerSprites>,
+) {
+    let r = atlases.get(&sprites.player_atlas).unwrap();
+    let cs = r.textures[0].size() * PLAYER_SCALE;
     commands.spawn((
         SpriteSheetBundle {
             sprite: TextureAtlasSprite {
-                custom_size: Some(Vec2::new(64.0, 64.0)),
+                custom_size: Some(cs),
                 index: 0,
                 ..default()
             },
+	    transform: Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
             texture_atlas: sprites.player_atlas.clone(),
             ..default()
         },
@@ -93,10 +102,11 @@ fn handle_input(
     keys: Res<Input<KeyCode>>,
     level: Res<LevelSettings>,
 ) {
-    let (mut p, mut v) = player.single_mut();
-    if keys.just_pressed(KeyCode::Space) && p.state != PlayerState::Jumping {
-        p.state = PlayerState::Jumping;
-        v.linvel = level.jump_vector();
+    for (mut p, mut v) in player.iter_mut() {
+        if keys.just_pressed(KeyCode::Space) && p.state != PlayerState::Jumping {
+            p.state = PlayerState::Jumping;
+            v.linvel = level.jump_vector();
+        }
     }
 }
 
@@ -121,42 +131,28 @@ fn update_anim(mut player: Query<(&mut PlayerAnim, &mut TextureAtlasSprite)>, ti
 /// player center leaves the environment bounding box.
 fn signal_player_out_of_bounds(
     mut player: Query<&mut Transform, With<Player>>,
-    mut oob: EventWriter<OutOfBounds>,
+    mut oob: EventWriter<OutOfBoundsEvent>,
     play_world: Res<WorldSettings>,
 ) {
     for trans in player.iter_mut() {
         if !play_world.bounds.contains(trans.translation.truncate()) {
-            oob.send(OutOfBounds);
+            oob.send(OutOfBoundsEvent);
         }
     }
 }
 
-/// Reset the player position, animation, rotation state.
-fn reset_player(
-    mut commands: Commands,
-    mut player: Query<(Entity, &mut Transform, &mut Velocity, &mut PlayerAnim), With<Player>>,
-) {
-    for (ent, mut trans, mut vel, mut anim) in player.iter_mut() {
-        trans.translation = Vec3::ZERO;
-        vel.linvel = Vec2::ZERO;
-        anim.rotation_target = PlayerRotTarget::Up;
-        trans.rotation.z = 0.0;
-        if let Some(mut e) = commands.get_entity(ent) {
-            e.remove::<Animator<Transform>>();
-        }
-    }
-}
 
 /// System to kill and spawn the player.
 fn respawn_player(
     mut commands: Commands,
-    sprites: Res<SpriteCollection>,
+    atlases: Res<Assets<TextureAtlas>>,
+    sprites: Res<PlayerSprites>,
     player: Query<Entity, With<Player>>,
 ) {
     for ent in player.iter() {
         commands.entity(ent).despawn();
     }
-    spawn_player(commands, sprites);
+    spawn_player(commands, atlases, sprites);
 }
 
 /// Change the rotation based on a gravity multiplier.
@@ -213,14 +209,60 @@ fn rotate_player_on_gravity_change(
     }
 }
 
+#[derive(Resource)]
+pub struct DecomposedSprite {
+    pub pixels: Vec<(Vec2, Color)>,
+}
+
+impl DecomposedSprite {
+    fn from_img_rect(img: &Image, rect: Rect) -> anyhow::Result<DecomposedSprite> {
+        let center = rect.center();
+        let dynamic_image = img.clone().try_into_dynamic()?;
+        let buf = dynamic_image.into_rgba8();
+        Ok(DecomposedSprite {
+            pixels: buf
+                .enumerate_pixels()
+                .filter(|(x, y, _)| rect.contains(Vec2::new(*x as f32, *y as f32)))
+                .filter_map(|(x, y, c)| {
+                    if c.0[3] != 0 {
+                        Some((
+                            Vec2::new(x as f32 - center.x, y as f32 - center.y),
+                            Color::rgba_u8(c.0[0], c.0[1], c.0[2], c.0[3]),
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        })
+    }
+}
+
+/// Insert the decomposed version of the player sprite.
+fn insert_decomposed_sprite(world: &mut World) {
+    let atlas: &Assets<TextureAtlas> = world.get_resource().unwrap();
+    let ps: &PlayerSprites = world.get_resource().unwrap();
+    let images: &Assets<Image> = world.get_resource().unwrap();
+
+    let ta = atlas.get(&ps.player_atlas).unwrap();
+    // grab the image reprented by the first text
+    let img = images.get(&ta.texture).unwrap();
+    let rect = ta.textures[0];
+
+    let ds = DecomposedSprite::from_img_rect(img, rect).unwrap();
+    bevy::log::warn!("{}", ds.pixels.len());
+    world.insert_resource(ds);
+}
+
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<PlayerState>()
             .register_type::<PlayerAnim>()
-            .add_event::<OutOfBounds>()
-            .add_collection_to_loading_state::<_, SpriteCollection>(GameState::AssetLoading)
+            .add_event::<OutOfBoundsEvent>()
+            .add_collection_to_loading_state::<_, PlayerSprites>(GameState::AssetLoading)
+            .add_systems(OnExit(GameState::AssetLoading), insert_decomposed_sprite)
             .add_systems(OnEnter(GameState::Ready), respawn_player.after(LevelSet))
             .add_systems(
                 Update,
@@ -232,7 +274,6 @@ impl Plugin for PlayerPlugin {
                 )
                     .in_set(PlayerSet)
                     .run_if(in_state(GameState::Playing)),
-            )
-            .add_systems(PostUpdate, reset_player.run_if(on_event::<ResetEvent>()));
+            );
     }
 }

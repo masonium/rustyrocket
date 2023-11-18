@@ -142,17 +142,18 @@ fn check_gravity_region_collisions(
     player_q: Query<(Entity, &Player)>,
     mut gevs: EventWriter<GravityEvent>,
 ) {
-    let player = player_q.single();
-    for (region_entity, region) in regions.iter() {
-        if rapier.intersection_pair(player.0, region_entity) == Some(true) {
-            // send a gravity changing event.
-            gevs.send(GravityEvent {
-                region: region_entity,
-                gravity_mult: region.0,
-            });
+    for player in player_q.iter() {
+        for (region_entity, region) in regions.iter() {
+            if rapier.intersection_pair(player.0, region_entity) == Some(true) {
+                // send a gravity changing event.
+                gevs.send(GravityEvent {
+                    region: region_entity,
+                    gravity_mult: region.0,
+                });
 
-            // kill the gravity region marker so we don't keep sending events.
-            commands.entity(region_entity).remove::<GravityRegion>();
+                // kill the gravity region marker so we don't keep sending events.
+                commands.entity(region_entity).remove::<GravityRegion>();
+            }
         }
     }
 }

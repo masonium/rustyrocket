@@ -20,13 +20,8 @@ pub struct ObstacleAssets {
 }
 
 /// Event spawned when the player hits an obstacle.
-#[derive(Event)]
-pub struct HitObstacleEvent {
-    _obstacle: Entity,
-
-    /// location of the player when the collision occurred.
-    _hit_location: Vec2,
-}
+#[derive(Event, Default)]
+pub struct HitObstacleEvent;
 
 #[derive(Component, Reflect)]
 pub struct RegionRef {
@@ -65,8 +60,9 @@ pub fn new_obstacle(
         },
         Obstacle,
         Collider::cuboid(width / 2.0, height / 2.0),
+	ColliderMassProperties::Density(1.0),
         RigidBody::KinematicVelocityBased,
-        Sensor,
+        //Sensor,
         ActiveEvents::COLLISION_EVENTS,
     )
 }
@@ -97,24 +93,16 @@ fn react_to_obstacle_collision(
     mut commands: Commands,
     mut events: EventReader<CollisionEvent>,
     mut hit_events: EventWriter<HitObstacleEvent>,
-    obs_mat: Res<ObstacleAssets>,
     query: Query<(Entity, Option<&RegionRef>), With<Obstacle>>,
-    player_q: Query<&Transform, With<Player>>,
 ) {
     for event in events.iter() {
         match event {
             CollisionEvent::Started(a, b, _) => {
                 for entity in [a, b] {
                     if let Ok(ent) = query.get(*entity) {
-                        // change the color of the event during the collision
-                        commands.entity(ent.0).remove::<Handle<ColorMaterial>>();
-                        commands.entity(ent.0).insert(obs_mat.enter_mat.clone());
 
                         // send the event that an obstacle as hit.
-                        hit_events.send(HitObstacleEvent {
-                            _obstacle: ent.0,
-                            _hit_location: player_q.single().translation.truncate(),
-                        });
+                        hit_events.send(HitObstacleEvent);
 
                         // Remove any scoring regions from the parent
                         if let Some(rr) = ent.1 {
@@ -125,14 +113,8 @@ fn react_to_obstacle_collision(
                     }
                 }
             }
-            CollisionEvent::Stopped(a, b, _) => {
-                for entity in [a, b] {
-                    if let Ok(ent) = query.get(*entity) {
-                        commands.entity(ent.0).remove::<Handle<ColorMaterial>>();
-                        commands.entity(ent.0).insert(obs_mat.exit_mat.clone());
-                    }
-                }
-            }
+	    _ => {
+	    }
         }
     }
 }

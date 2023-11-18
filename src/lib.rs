@@ -1,5 +1,5 @@
 #![allow(clippy::type_complexity)]
-
+pub mod dying_player;
 pub mod fonts;
 pub mod gravity_shift;
 pub mod level;
@@ -22,13 +22,15 @@ pub enum GameState {
     AssetLoading,
     Ready,
     Playing,
+    Dying,
 }
 
-#[derive(Event)]
+#[derive(Event, Default)]
 pub struct ResetEvent;
 
-pub fn send_reset_event(mut ev: EventWriter<ResetEvent>) {
-    ev.send(ResetEvent);
+/// Generic mechanism for sending default events.
+pub fn send_event<T: Event + Default>(mut ev: EventWriter<T>) {
+    ev.send(T::default());
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash, SystemSet)]

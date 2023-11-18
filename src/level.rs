@@ -6,9 +6,9 @@ use bevy_rapier2d::prelude::*;
 use crate::{
     gravity_shift::{new_gravity_region, GravityMaterials},
     obstacle::{new_obstacle, HitObstacleEvent, ObstacleAssets, RegionRef},
-    player::{OutOfBounds, PlayerSet},
+    player::{OutOfBoundsEvent, PlayerSet},
     scoring_region::new_scoring_region,
-    send_reset_event, GameState, LevelSet, ResetEvent, WorldSet, WorldSettings,
+    GameState, LevelSet, ResetEvent, WorldSet, WorldSettings, send_event,
 };
 
 #[derive(Resource, Reflect, Default)]
@@ -19,6 +19,8 @@ pub struct LevelSettings {
     /// Base velocity jump vector (set when initializing a jump). Can
     /// be modified by the gravity mult.
     base_jump_vel: Vec2,
+
+    pub explosion_speed: f32,
 
     /// Base gravity acceleration vector. Typically not modified in
     /// game, but is effectively tranformed by gravity mult.
@@ -90,6 +92,7 @@ fn setup_level_settings(
     level_settings.reset();
 
     level_settings.base_jump_vel = Vec2::new(0.0, 300.0);
+    level_settings.explosion_speed = 600.0;
     level_settings.base_gravity = Vec2::new(0.0, -500.0);
     level_settings.center_y_range = [-200.0, 200.0];
     level_settings.gap_height_range = [200.0, 300.0];
@@ -277,10 +280,12 @@ fn reset_level(
 
 fn in_ready_level(mut rapier: ResMut<RapierConfiguration>) {
     rapier.physics_pipeline_active = false;
+    bevy::log::warn!(rapier.physics_pipeline_active);
 }
 
 fn in_start_level(mut rapier: ResMut<RapierConfiguration>) {
     rapier.physics_pipeline_active = true;
+    bevy::log::warn!(rapier.physics_pipeline_active);
 }
 
 fn start_level(mut app_state: ResMut<NextState<GameState>>) {
@@ -306,14 +311,13 @@ impl Plugin for LevelPlugin {
             .add_systems(PreUpdate, update_timer)
             .add_systems(
                 OnExit(GameState::AssetLoading),
-                |mut evs: EventWriter<ResetEvent>| evs.send(ResetEvent),
+		send_event::<ResetEvent>,
             )
             .add_systems(
                 Update,
                 (
                     remove_invisible_objects,
                     spawn_items,
-                    send_reset_event.run_if(on_event::<HitObstacleEvent>()),
                     spawn_obstacles.run_if(input_just_pressed(KeyCode::O)),
                     spawn_gravity_region.run_if(input_just_pressed(KeyCode::G)),
                 )
@@ -327,12 +331,6 @@ impl Plugin for LevelPlugin {
                 ),
             )
             .add_systems(OnEnter(GameState::Playing), in_start_level)
-            .add_systems(
-                Update,
-                send_reset_event
-                    .after(PlayerSet)
-                    .run_if(on_event::<OutOfBounds>()),
-            )
             .add_systems(PostUpdate, reset_level.run_if(on_event::<ResetEvent>()));
     }
 }

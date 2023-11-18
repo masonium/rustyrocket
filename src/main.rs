@@ -10,15 +10,16 @@ use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use bevy_rapier2d::{prelude::*, render::RapierDebugRenderPlugin};
 use bevy_tweening::TweeningPlugin;
 use rustyrocket::{
+    dying_player::DyingPlayerPlugin,
     fonts::GameFontsPlugin,
     gravity_shift::GravityShiftPlugin,
     level::{LevelPlugin, LevelSettings},
-    obstacle::ObstaclePlugin,
+    obstacle::{HitObstacleEvent, ObstaclePlugin},
     player::PlayerPlugin,
     score::{Score, ScorePlugin},
     score_display::ScoreDisplayPlugin,
     scoring_region::ScoringRegionPlugin,
-    send_reset_event, ResetEvent, WorldSet, WorldSettings,
+    send_event, ResetEvent, WorldSet, WorldSettings,
 };
 
 use rustyrocket::GameState;
@@ -42,6 +43,15 @@ fn setup_physics(
 
 fn enable_physics_debugging(mut debug_context: ResMut<DebugRenderContext>) {
     debug_context.enabled = !debug_context.enabled;
+}
+
+fn toggle_time(mut time: ResMut<Time>) {
+    if time.is_paused() {
+	time.unpause();
+    } else {
+	time.pause();
+    }
+	    
 }
 
 fn main() {
@@ -100,6 +110,10 @@ fn main() {
             Update,
             enable_physics_debugging.run_if(input_just_pressed(KeyCode::D)),
         )
+        .add_systems(
+            Update,
+            toggle_time.run_if(input_just_pressed(KeyCode::P)),
+        )
         .add_state::<GameState>()
         .add_loading_state(
             LoadingState::new(GameState::AssetLoading).continue_to_state(GameState::Ready),
@@ -112,11 +126,17 @@ fn main() {
         .add_plugins(TweeningPlugin)
         .add_plugins(GameFontsPlugin)
         .add_plugins(ScoreDisplayPlugin)
+        .add_plugins(DyingPlayerPlugin)
         .add_systems(Startup, (setup_camera, setup_physics).in_set(WorldSet))
         .add_systems(
             Update,
-            send_reset_event
+            send_event::<ResetEvent>
                 .run_if(in_state(GameState::Playing).and_then(input_just_pressed(KeyCode::R))),
+        )
+        .add_systems(
+            Update,
+            send_event::<HitObstacleEvent>
+                .run_if(in_state(GameState::Playing).and_then(input_just_pressed(KeyCode::Z))),
         )
         .add_systems(Update, (close_on_esc,))
         .run()

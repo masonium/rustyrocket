@@ -13,6 +13,7 @@ bevy_asset_loader = { version = "*", features = ["2d"] }
 bevy-inspector-egui = "*"
 bevy_rapier2d = "0.22.0"
 fastrand = "2.0.1"
+anyhow = "*"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

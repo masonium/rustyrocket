@@ -34,13 +34,14 @@ fn check_scoring_region_collisions(
     mut score: ResMut<Score>,
     player_q: Query<(Entity, &Player)>,
 ) {
-    let player = player_q.single();
-    for (region_entity, region) in regions.iter() {
-        if rapier.intersection_pair(player.0, region_entity) == Some(true) {
-            score.score += region.score_delta;
+    for player in player_q.iter() {
+        for (region_entity, region) in regions.iter() {
+            if rapier.intersection_pair(player.0, region_entity) == Some(true) {
+                score.score += region.score_delta;
 
-            // despawn the region, so this only happens once
-            commands.entity(region_entity).despawn();
+                // despawn the region, so this only happens once
+                commands.entity(region_entity).despawn();
+            }
         }
     }
 }
