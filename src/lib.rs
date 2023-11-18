@@ -1,4 +1,6 @@
 #![allow(clippy::type_complexity)]
+pub mod background;
+pub mod center_display;
 pub mod dying_player;
 pub mod fonts;
 pub mod gravity_shift;

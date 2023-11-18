@@ -10,6 +10,8 @@ use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use bevy_rapier2d::{prelude::*, render::RapierDebugRenderPlugin};
 use bevy_tweening::TweeningPlugin;
 use rustyrocket::{
+    background::GameBackgroundPlugin,
+    center_display::CenterDisplayPlugin,
     dying_player::DyingPlayerPlugin,
     fonts::GameFontsPlugin,
     gravity_shift::GravityShiftPlugin,
@@ -47,11 +49,10 @@ fn enable_physics_debugging(mut debug_context: ResMut<DebugRenderContext>) {
 
 fn toggle_time(mut time: ResMut<Time>) {
     if time.is_paused() {
-	time.unpause();
+        time.unpause();
     } else {
-	time.pause();
+        time.pause();
     }
-	    
 }
 
 fn main() {
@@ -110,10 +111,7 @@ fn main() {
             Update,
             enable_physics_debugging.run_if(input_just_pressed(KeyCode::D)),
         )
-        .add_systems(
-            Update,
-            toggle_time.run_if(input_just_pressed(KeyCode::P)),
-        )
+        .add_systems(Update, toggle_time.run_if(input_just_pressed(KeyCode::P)))
         .add_state::<GameState>()
         .add_loading_state(
             LoadingState::new(GameState::AssetLoading).continue_to_state(GameState::Ready),
@@ -127,6 +125,8 @@ fn main() {
         .add_plugins(GameFontsPlugin)
         .add_plugins(ScoreDisplayPlugin)
         .add_plugins(DyingPlayerPlugin)
+        .add_plugins(CenterDisplayPlugin)
+        .add_plugins(GameBackgroundPlugin)
         .add_systems(Startup, (setup_camera, setup_physics).in_set(WorldSet))
         .add_systems(
             Update,

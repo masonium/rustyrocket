@@ -52,7 +52,7 @@ pub fn new_obstacle(
                 translation: Vec3::new(
                     level_settings.start_offset + width / 2.0,
                     center_y * top_mult,
-                    0.0,
+                    2.0,
                 ),
                 ..default()
             },
@@ -60,7 +60,7 @@ pub fn new_obstacle(
         },
         Obstacle,
         Collider::cuboid(width / 2.0, height / 2.0),
-	ColliderMassProperties::Density(1.0),
+        ColliderMassProperties::Density(1.0),
         RigidBody::KinematicVelocityBased,
         //Sensor,
         ActiveEvents::COLLISION_EVENTS,
@@ -100,7 +100,6 @@ fn react_to_obstacle_collision(
             CollisionEvent::Started(a, b, _) => {
                 for entity in [a, b] {
                     if let Ok(ent) = query.get(*entity) {
-
                         // send the event that an obstacle as hit.
                         hit_events.send(HitObstacleEvent);
 
@@ -113,8 +112,7 @@ fn react_to_obstacle_collision(
                     }
                 }
             }
-	    _ => {
-	    }
+            _ => {}
         }
     }
 }

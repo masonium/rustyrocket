@@ -22,7 +22,7 @@ fn setup_score(mut commands: Commands, world: Res<WorldSettings>, fonts: Res<Fon
             transform: Transform::from_translation(Vec3::new(
                 world.bounds.min.x + 12.0,
                 world.bounds.max.y,
-                0.0,
+                10.0,
             )),
             ..default()
         },

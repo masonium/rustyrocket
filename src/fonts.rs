@@ -10,8 +10,8 @@ pub struct FontsCollection {
     pub score_font: Handle<Font>,
 
     /// font for the pause menu, possibly
-    #[asset(path = "fonts/PixelOperatorMono.ttf")]
-    _menu_font: Handle<Font>,
+    #[asset(path = "fonts/PixelOperatorMono-Bold.ttf")]
+    pub menu_font: Handle<Font>,
 }
 
 pub struct GameFontsPlugin;

@@ -1,12 +1,12 @@
 use std::time::Duration;
 
-use bevy::{ecs::schedule::AnonymousSet, prelude::*};
+use bevy::prelude::*;
 use bevy_asset_loader::{asset_collection::AssetCollection, loading_state::LoadingStateAppExt};
 use bevy_rapier2d::prelude::*;
 use bevy_tweening::{lens::TransformRotationLens, Animator, EaseFunction, Tween};
 
 use crate::{
-    gravity_shift::GravityEvent, level::LevelSettings, GameState, LevelSet, ResetEvent,
+    gravity_shift::GravityEvent, level::LevelSettings, GameState, LevelSet, 
     WorldSettings,
 };
 
@@ -78,7 +78,7 @@ fn spawn_player(
                 index: 0,
                 ..default()
             },
-	    transform: Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
             texture_atlas: sprites.player_atlas.clone(),
             ..default()
         },
@@ -140,7 +140,6 @@ fn signal_player_out_of_bounds(
         }
     }
 }
-
 
 /// System to kill and spawn the player.
 fn respawn_player(

@@ -5,10 +5,9 @@ use bevy_rapier2d::prelude::*;
 
 use crate::{
     gravity_shift::{new_gravity_region, GravityMaterials},
-    obstacle::{new_obstacle, HitObstacleEvent, ObstacleAssets, RegionRef},
-    player::{OutOfBoundsEvent, PlayerSet},
+    obstacle::{new_obstacle, ObstacleAssets, RegionRef},
     scoring_region::new_scoring_region,
-    GameState, LevelSet, ResetEvent, WorldSet, WorldSettings, send_event,
+    send_event, GameState, LevelSet, ResetEvent, WorldSet, WorldSettings,
 };
 
 #[derive(Resource, Reflect, Default)]
@@ -309,10 +308,7 @@ impl Plugin for LevelPlugin {
                 setup_level_settings.in_set(LevelSet).after(WorldSet),
             )
             .add_systems(PreUpdate, update_timer)
-            .add_systems(
-                OnExit(GameState::AssetLoading),
-		send_event::<ResetEvent>,
-            )
+            .add_systems(OnExit(GameState::AssetLoading), send_event::<ResetEvent>)
             .add_systems(
                 Update,
                 (

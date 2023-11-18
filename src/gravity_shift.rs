@@ -23,8 +23,8 @@ pub struct GravityEvent {
 
 #[derive(Default, Resource)]
 pub struct GravityMaterials {
-    scrolling_down_mat: Handle<ScrollingMaterial>,
-    scrolling_up_mat: Handle<ScrollingMaterial>,
+    scrolling_down_mat: Handle<GravityShiftMaterial>,
+    scrolling_up_mat: Handle<GravityShiftMaterial>,
 
     mesh: Handle<Mesh>,
 }
@@ -41,7 +41,7 @@ struct GravityRegion(f32);
 
 #[derive(AsBindGroup, Clone, TypeUuid, TypePath, Debug)]
 #[uuid = "313dfd8f-51a7-4cf2-a5f2-8b1491988974"]
-struct ScrollingMaterial {
+struct GravityShiftMaterial {
     #[texture(0)]
     #[sampler(1)]
     base_texture: Option<Handle<Image>>,
@@ -54,7 +54,7 @@ struct ScrollingMaterial {
     scroll_direction: f32,
 }
 
-impl Material2d for ScrollingMaterial {
+impl Material2d for GravityShiftMaterial {
     fn fragment_shader() -> bevy::render::render_resource::ShaderRef {
         println!("loading shaders/anim.wgsl");
         "shaders/anim.wgsl".into()
@@ -65,7 +65,7 @@ fn setup_gravity_assets(
     mut images: ResMut<Assets<Image>>,
     grav_assets: Res<GravityAssets>,
     play_world: Res<WorldSettings>,
-    mut materials: ResMut<Assets<ScrollingMaterial>>,
+    mut materials: ResMut<Assets<GravityShiftMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut level_settings: ResMut<LevelSettings>,
     mut grav_mat: ResMut<GravityMaterials>,
@@ -79,14 +79,14 @@ fn setup_gravity_assets(
     };
     image.sampler_descriptor = ImageSampler::Descriptor(sampler);
 
-    grav_mat.scrolling_down_mat = materials.add(ScrollingMaterial {
+    grav_mat.scrolling_down_mat = materials.add(GravityShiftMaterial {
         color: Color::RED,
         scroll_speed: 1.0,
         scroll_direction: -1.0,
         base_texture: Some(grav_assets.arrow.clone()),
     });
 
-    grav_mat.scrolling_up_mat = materials.add(ScrollingMaterial {
+    grav_mat.scrolling_up_mat = materials.add(GravityShiftMaterial {
         color: Color::BLUE,
         scroll_speed: 1.0,
         scroll_direction: 1.0,
@@ -175,10 +175,10 @@ pub struct GravityShiftPlugin;
 impl Plugin for GravityShiftPlugin {
     fn build(&self, app: &mut App) {
         app.add_collection_to_loading_state::<_, GravityAssets>(GameState::AssetLoading)
-            .add_plugins(Material2dPlugin::<ScrollingMaterial>::default())
+            .add_plugins(Material2dPlugin::<GravityShiftMaterial>::default())
             .insert_resource(GravityMaterials::default())
             .add_event::<GravityEvent>()
-            .add_asset::<ScrollingMaterial>()
+            .add_asset::<GravityShiftMaterial>()
             .add_systems(OnEnter(GameState::Playing), setup_gravity_assets)
             .add_systems(
                 Update,

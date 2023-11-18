@@ -5,7 +5,7 @@ use std::time::Duration;
 use crate::{
     level::LevelSettings,
     obstacle::HitObstacleEvent,
-    player::{DecomposedSprite, Player, PLAYER_SCALE, OutOfBoundsEvent},
+    player::{DecomposedSprite, OutOfBoundsEvent, Player, PLAYER_SCALE},
     GameState, ResetEvent,
 };
 use bevy::prelude::*;
@@ -54,8 +54,10 @@ pub fn explode_player(
     mut next_state: ResMut<NextState<GameState>>,
     ds: Res<DecomposedSprite>,
 ) {
+    println!("player exploded");
     // Get the existing player
     for (ent, t, v) in player.iter() {
+	println!("found player to explode");
         let trans = t.translation;
         // spawn the sprites around the velocity
         commands.spawn((PlayerDeathAnim {
@@ -70,7 +72,9 @@ pub fn explode_player(
                         color: pix.1,
                         ..default()
                     },
-                    transform: Transform::from_translation(trans - t.rotation * (pix.0 * PLAYER_SCALE).extend(10.0)),
+                    transform: Transform::from_translation(
+                        trans + t.rotation * (-pix.0 * PLAYER_SCALE).extend(10.0),
+                    ),
                     ..default()
                 },
                 Velocity {
@@ -78,12 +82,12 @@ pub fn explode_player(
                     ..default()
                 },
                 RigidBody::Dynamic,
-
                 PlayerDeathPiece,
-		Collider::cuboid(PLAYER_SCALE/2.0, PLAYER_SCALE / 2.0),
-		ColliderMassProperties::Density(1.0),
+                Collider::cuboid(PLAYER_SCALE / 2.0, PLAYER_SCALE / 2.0),
+                ColliderMassProperties::Density(1.0),
             ));
         }
+	println!("spawned {} pixels", ds.pixels.len());
         commands.entity(ent).despawn_recursive();
     }
     next_state.set(GameState::Dying);
