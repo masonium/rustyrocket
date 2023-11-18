@@ -54,10 +54,8 @@ pub fn explode_player(
     mut next_state: ResMut<NextState<GameState>>,
     ds: Res<DecomposedSprite>,
 ) {
-    println!("player exploded");
     // Get the existing player
     for (ent, t, v) in player.iter() {
-	println!("found player to explode");
         let trans = t.translation;
         // spawn the sprites around the velocity
         commands.spawn((PlayerDeathAnim {
@@ -87,7 +85,6 @@ pub fn explode_player(
                 ColliderMassProperties::Density(1.0),
             ));
         }
-	println!("spawned {} pixels", ds.pixels.len());
         commands.entity(ent).despawn_recursive();
     }
     next_state.set(GameState::Dying);
