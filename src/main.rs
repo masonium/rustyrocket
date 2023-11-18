@@ -8,6 +8,7 @@ use bevy::{
 use bevy_asset_loader::loading_state::{LoadingState, LoadingStateAppExt};
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use bevy_rapier2d::{prelude::*, render::RapierDebugRenderPlugin};
+use bevy_shader_utils::ShaderUtilsPlugin;
 use bevy_tweening::TweeningPlugin;
 use rustyrocket::{
     background::GameBackgroundPlugin,
@@ -127,6 +128,7 @@ fn main() {
         .add_plugins(DyingPlayerPlugin)
         .add_plugins(CenterDisplayPlugin)
         .add_plugins(GameBackgroundPlugin)
+        .add_plugins(ShaderUtilsPlugin)
         .add_systems(Startup, (setup_camera, setup_physics).in_set(WorldSet))
         .add_systems(
             Update,
