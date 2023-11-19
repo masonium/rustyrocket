@@ -2,13 +2,12 @@ use bevy::{
     input::common_conditions::{input_just_pressed, input_toggle_active},
     log::{Level, LogPlugin},
     prelude::*,
-    render::render_resource::{FilterMode, SamplerDescriptor},
+    render::texture::{ImageFilterMode, ImageSamplerDescriptor},
     window::{close_on_esc, WindowResolution},
 };
 use bevy_asset_loader::loading_state::{LoadingState, LoadingStateAppExt};
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use bevy_rapier2d::{prelude::*, render::RapierDebugRenderPlugin};
-use bevy_shader_utils::ShaderUtilsPlugin;
 use bevy_tweening::TweeningPlugin;
 use rustyrocket::{
     background::GameBackgroundPlugin,
@@ -48,7 +47,7 @@ fn enable_physics_debugging(mut debug_context: ResMut<DebugRenderContext>) {
     debug_context.enabled = !debug_context.enabled;
 }
 
-fn toggle_time(mut time: ResMut<Time>) {
+fn toggle_time(mut time: ResMut<Time<Virtual>>) {
     if time.is_paused() {
         time.unpause();
     } else {
@@ -71,8 +70,8 @@ fn main() {
                 })
                 .set(ImagePlugin {
                     default_sampler: {
-                        SamplerDescriptor {
-                            mag_filter: FilterMode::Nearest,
+                        ImageSamplerDescriptor {
+                            mag_filter: ImageFilterMode::Nearest,
                             ..default()
                         }
                     },
@@ -128,7 +127,6 @@ fn main() {
         .add_plugins(DyingPlayerPlugin)
         .add_plugins(CenterDisplayPlugin)
         .add_plugins(GameBackgroundPlugin)
-        .add_plugins(ShaderUtilsPlugin)
         .add_systems(Startup, (setup_camera, setup_physics).in_set(WorldSet))
         .add_systems(
             Update,

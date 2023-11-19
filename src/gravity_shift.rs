@@ -4,8 +4,8 @@ use bevy::{
     prelude::*,
     reflect::{TypePath, TypeUuid},
     render::{
-        render_resource::{AddressMode, AsBindGroup, SamplerDescriptor},
-        texture::ImageSampler,
+        render_resource::AsBindGroup,
+        texture::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
     },
     sprite::{Material2d, Material2dPlugin, MaterialMesh2dBundle},
 };
@@ -39,7 +39,7 @@ struct GravityAssets {
 #[derive(Component, Resource)]
 struct GravityRegion(f32);
 
-#[derive(AsBindGroup, Clone, TypeUuid, TypePath, Debug)]
+#[derive(AsBindGroup, Clone, TypeUuid, TypePath, Debug, Asset)]
 #[uuid = "313dfd8f-51a7-4cf2-a5f2-8b1491988974"]
 struct GravityShiftMaterial {
     #[texture(0)]
@@ -73,11 +73,12 @@ fn setup_gravity_assets(
     let image = images.get_mut(&grav_assets.arrow).unwrap();
     level_settings.gravity_width = image.texture_descriptor.size.width as f32;
 
-    let sampler = SamplerDescriptor {
-        address_mode_v: AddressMode::Repeat,
+    let sampler = ImageSamplerDescriptor {
+        address_mode_v: ImageAddressMode::Repeat,
         ..default()
     };
-    image.sampler_descriptor = ImageSampler::Descriptor(sampler);
+
+    image.sampler = ImageSampler::Descriptor(sampler);
 
     grav_mat.scrolling_down_mat = materials.add(GravityShiftMaterial {
         color: Color::RED,
@@ -164,7 +165,7 @@ fn on_gravity_event(
     mut rapier_config: ResMut<RapierConfiguration>,
     mut gevs: EventReader<GravityEvent>,
 ) {
-    for ev in gevs.iter() {
+    for ev in gevs.read() {
         level.gravity_mult = ev.gravity_mult;
         rapier_config.gravity = level.gravity_vector();
     }
@@ -178,7 +179,6 @@ impl Plugin for GravityShiftPlugin {
             .add_plugins(Material2dPlugin::<GravityShiftMaterial>::default())
             .insert_resource(GravityMaterials::default())
             .add_event::<GravityEvent>()
-            .add_asset::<GravityShiftMaterial>()
             .add_systems(OnEnter(GameState::Playing), setup_gravity_assets)
             .add_systems(
                 Update,

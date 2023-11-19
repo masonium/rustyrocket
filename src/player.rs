@@ -6,8 +6,7 @@ use bevy_rapier2d::prelude::*;
 use bevy_tweening::{lens::TransformRotationLens, Animator, EaseFunction, Tween};
 
 use crate::{
-    gravity_shift::GravityEvent, level::LevelSettings, GameState, LevelSet, 
-    WorldSettings,
+    gravity_shift::GravityEvent, level::LevelSettings, GameState, LevelSet, WorldSettings,
 };
 
 const JUMP_ANIM_FRAMES: u32 = 4;
@@ -169,7 +168,7 @@ fn rotate_player_on_gravity_change(
     mut gevs: EventReader<GravityEvent>,
 ) {
     // Check the current ratio, and see if we need to add a tweener.
-    for ev in gevs.iter() {
+    for ev in gevs.read() {
         let target_rotation = if ev.gravity_mult > 0.0 {
             PlayerRotTarget::Up
         } else {

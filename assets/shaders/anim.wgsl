@@ -1,11 +1,5 @@
-#import bevy_sprite::mesh2d_types         Mesh2d
-#import bevy_sprite::mesh2d_vertex_output MeshVertexOutput
-#import bevy_sprite::mesh2d_view_bindings globals
-
-// struct ScrollingMaterial {
-// color: vec4<f32>,
-// scroll_speed: f32,
-// }
+#import bevy_sprite::mesh2d_vertex_output::VertexOutput
+#import bevy_sprite::mesh2d_view_bindings::globals
 
 
 @group(1) @binding(0)
@@ -22,7 +16,7 @@ var<uniform> scroll_speed: f32;
 var<uniform> scroll_direction: f32;
 
 @fragment
-fn fragment(in: MeshVertexOutput) -> @location(0) vec4<f32> {
+fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
   var y = in.uv.y;
   if (scroll_direction > 0.0) {
     y = 1.0 - y;

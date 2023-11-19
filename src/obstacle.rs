@@ -1,7 +1,7 @@
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 use bevy_rapier2d::prelude::*;
 
-use crate::{level::LevelSettings, player::Player, WorldSettings};
+use crate::{level::LevelSettings, WorldSettings};
 
 /// Marker trait for obstacles.
 #[derive(Component, Reflect)]
@@ -95,24 +95,21 @@ fn react_to_obstacle_collision(
     mut hit_events: EventWriter<HitObstacleEvent>,
     query: Query<(Entity, Option<&RegionRef>), With<Obstacle>>,
 ) {
-    for event in events.iter() {
-        match event {
-            CollisionEvent::Started(a, b, _) => {
-                for entity in [a, b] {
-                    if let Ok(ent) = query.get(*entity) {
-                        // send the event that an obstacle as hit.
-                        hit_events.send(HitObstacleEvent);
+    for event in events.read() {
+        if let CollisionEvent::Started(a, b, _) = event {
+            for entity in [a, b] {
+                if let Ok(ent) = query.get(*entity) {
+                    // send the event that an obstacle as hit.
+                    hit_events.send(HitObstacleEvent);
 
-                        // Remove any scoring regions from the parent
-                        if let Some(rr) = ent.1 {
-                            if let Some(mut region) = commands.get_entity(rr.region) {
-                                region.despawn();
-                            }
+                    // Remove any scoring regions from the parent
+                    if let Some(rr) = ent.1 {
+                        if let Some(mut region) = commands.get_entity(rr.region) {
+                            region.despawn();
                         }
                     }
                 }
             }
-            _ => {}
         }
     }
 }

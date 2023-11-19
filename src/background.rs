@@ -8,7 +8,7 @@ use bevy_rapier2d::prelude::RapierConfiguration;
 
 use crate::{GameState, WorldSet, WorldSettings};
 
-#[derive(AsBindGroup, Clone, TypeUuid, TypePath, Debug)]
+#[derive(AsBindGroup, Clone, TypeUuid, TypePath, Debug, Asset)]
 #[uuid = "476f30fe-bed3-4495-9603-aaedb35ba69b"]
 struct BackgroundMaterial {
     #[uniform(0)]
