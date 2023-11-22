@@ -6,6 +6,7 @@ pub mod fonts;
 pub mod gravity_shift;
 pub mod level;
 pub mod obstacle;
+pub mod obstacle_spawner;
 pub mod player;
 pub mod score;
 pub mod score_display;

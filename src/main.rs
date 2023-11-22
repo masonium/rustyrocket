@@ -17,6 +17,7 @@ use rustyrocket::{
     gravity_shift::GravityShiftPlugin,
     level::{LevelPlugin, LevelSettings},
     obstacle::{HitObstacleEvent, ObstaclePlugin},
+    obstacle_spawner::ObstacleSpawnerPlugin,
     player::PlayerPlugin,
     score::{Score, ScorePlugin},
     score_display::ScoreDisplayPlugin,
@@ -118,6 +119,7 @@ fn main() {
         )
         .add_plugins(PlayerPlugin)
         .add_plugins(LevelPlugin)
+        .add_plugins(ObstacleSpawnerPlugin)
         .add_plugins(ScorePlugin)
         .add_plugins(ScoringRegionPlugin)
         .add_plugins(GravityShiftPlugin)

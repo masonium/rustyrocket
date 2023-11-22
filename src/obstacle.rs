@@ -1,7 +1,7 @@
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 use bevy_rapier2d::prelude::*;
 
-use crate::{level::LevelSettings, WorldSettings};
+use crate::WorldSettings;
 
 /// Marker trait for obstacles.
 #[derive(Component, Reflect)]
@@ -31,13 +31,13 @@ pub struct RegionRef {
 /// Spawn an obstacle bundle off-screen, moving left.
 pub fn new_obstacle(
     from_top: bool,
+    width: f32,
     height: f32,
+    start_x: f32,
     meshes: &mut ResMut<Assets<Mesh>>,
     play_world: &Res<WorldSettings>,
-    level_settings: &Res<LevelSettings>,
     obs_mat: &Res<ObstacleAssets>,
 ) -> impl Bundle {
-    let width = level_settings.obstacle_width;
     //let height = 100.0; //play_world.bounds.height();
     let b = meshes.add(Mesh::from(shape::Quad::new(Vec2::new(width, height))));
     let c = obs_mat.exit_mat.clone();
@@ -49,11 +49,8 @@ pub fn new_obstacle(
             mesh: b.into(),
             material: c,
             transform: Transform {
-                translation: Vec3::new(
-                    level_settings.start_offset + width / 2.0,
-                    center_y * top_mult,
-                    2.0,
-                ),
+                translation: Vec3::new(start_x, center_y * top_mult, 2.0),
+                scale: Vec3::new(1.0, 1.0, 1.0),
                 ..default()
             },
             ..default()
@@ -72,11 +69,10 @@ fn setup_obstacle_assets(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     play_world: Res<WorldSettings>,
-    level: Res<LevelSettings>,
     mut obs_mat: ResMut<ObstacleAssets>,
 ) {
     let height = play_world.bounds.height() / 2.0;
-    let quad_dim = Vec2::new(level.obstacle_width, height);
+    let quad_dim = Vec2::new(1.0, height);
     obs_mat.base_mesh = meshes.add(Mesh::from(shape::Quad::new(quad_dim)));
 
     obs_mat.enter_mat = materials.add(ColorMaterial {

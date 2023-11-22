@@ -52,6 +52,8 @@ struct GravityShiftMaterial {
     scroll_speed: f32,
     #[uniform(4)]
     scroll_direction: f32,
+    #[uniform(5)]
+    texture_y_mult: f32,
 }
 
 impl Material2d for GravityShiftMaterial {
@@ -67,11 +69,10 @@ fn setup_gravity_assets(
     play_world: Res<WorldSettings>,
     mut materials: ResMut<Assets<GravityShiftMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut level_settings: ResMut<LevelSettings>,
     mut grav_mat: ResMut<GravityMaterials>,
 ) {
     let image = images.get_mut(&grav_assets.arrow).unwrap();
-    level_settings.gravity_width = image.texture_descriptor.size.width as f32;
+    let width = 32.0;
 
     let sampler = ImageSamplerDescriptor {
         address_mode_v: ImageAddressMode::Repeat,
@@ -80,11 +81,14 @@ fn setup_gravity_assets(
 
     image.sampler = ImageSampler::Descriptor(sampler);
 
+    let texture_y_mult = play_world.bounds.height() / width;
+
     grav_mat.scrolling_down_mat = materials.add(GravityShiftMaterial {
         color: Color::RED,
         scroll_speed: 1.0,
         scroll_direction: -1.0,
         base_texture: Some(grav_assets.arrow.clone()),
+        texture_y_mult,
     });
 
     grav_mat.scrolling_up_mat = materials.add(GravityShiftMaterial {
@@ -92,9 +96,9 @@ fn setup_gravity_assets(
         scroll_speed: 1.0,
         scroll_direction: 1.0,
         base_texture: Some(grav_assets.arrow.clone()),
+        texture_y_mult,
     });
 
-    let width = level_settings.gravity_width;
     let height = play_world.bounds.height();
     grav_mat.mesh = meshes.add(Mesh::from(shape::Quad::new(Vec2::new(width, height))));
 }
@@ -102,13 +106,13 @@ fn setup_gravity_assets(
 /// Create a new gravity region.
 pub fn new_gravity_region(
     new_gravity_mult: f32,
+    start_x: f32,
+    width: f32,
     play_world: &Res<WorldSettings>,
-    level: &Res<LevelSettings>,
     grav_mat: &Res<GravityMaterials>,
 ) -> impl Bundle {
     let down = new_gravity_mult > 0.0;
 
-    let width = level.gravity_width;
     let height = play_world.bounds.height();
     let q = grav_mat.mesh.clone();
 
@@ -121,11 +125,7 @@ pub fn new_gravity_region(
         MaterialMesh2dBundle {
             mesh: q.into(),
             material,
-            transform: Transform::from_translation(Vec3::new(
-                level.start_offset + width / 2.0,
-                0.0,
-                3.0,
-            )),
+            transform: Transform::from_xyz(start_x, 0.0, 3.0),
             ..default()
         },
         Collider::cuboid(width * 0.5, height * 0.5),

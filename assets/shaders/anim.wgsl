@@ -14,6 +14,8 @@ var<uniform> color: vec4f;
 var<uniform> scroll_speed: f32;
 @group(1) @binding(4)
 var<uniform> scroll_direction: f32;
+@group(1) @binding(5)
+var<uniform> texture_y_mult: f32;
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -22,7 +24,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     y = 1.0 - y;
   }
   //let scaled_frag_pos = vec2f(in.uv.x, scroll_direction * (y * 18.0 + scroll_speed * globals.time));
-  var scaled_frag_pos = vec2f(in.uv.x, y * 18.0);
+  var scaled_frag_pos = vec2f(in.uv.x, y * texture_y_mult);
   scaled_frag_pos -= vec2f(0.0, scroll_speed * globals.time);
   //let v = vec4<f32>(1.0, 1.0, 1.0, 1.0);
 
