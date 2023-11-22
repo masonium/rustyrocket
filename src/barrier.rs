@@ -5,10 +5,10 @@ use crate::WorldSettings;
 
 /// Marker trait for obstacles.
 #[derive(Component, Reflect)]
-pub struct Obstacle;
+pub struct Barrier;
 
 #[derive(Resource, Default, Reflect)]
-pub struct ObstacleAssets {
+pub struct BarrierAssets {
     /// basic quad mesh
     base_mesh: Handle<Mesh>,
 
@@ -21,22 +21,22 @@ pub struct ObstacleAssets {
 
 /// Event spawned when the player hits an obstacle.
 #[derive(Event, Default)]
-pub struct HitObstacleEvent;
+pub struct HitBarrierEvent;
 
 #[derive(Component, Reflect)]
 pub struct RegionRef {
     pub region: Entity,
 }
 
-/// Spawn an obstacle bundle off-screen, moving left.
-pub fn new_obstacle(
+/// Spawn an barrier bundle off-screen
+pub fn new_barrier(
     from_top: bool,
     width: f32,
     height: f32,
     start_x: f32,
     meshes: &mut ResMut<Assets<Mesh>>,
     play_world: &Res<WorldSettings>,
-    obs_mat: &Res<ObstacleAssets>,
+    obs_mat: &Res<BarrierAssets>,
 ) -> impl Bundle {
     //let height = 100.0; //play_world.bounds.height();
     let b = meshes.add(Mesh::from(shape::Quad::new(Vec2::new(width, height))));
@@ -55,7 +55,7 @@ pub fn new_obstacle(
             },
             ..default()
         },
-        Obstacle,
+        Barrier,
         Collider::cuboid(width / 2.0, height / 2.0),
         ColliderMassProperties::Density(1.0),
         RigidBody::KinematicVelocityBased,
@@ -65,11 +65,11 @@ pub fn new_obstacle(
 }
 
 /// Setup the collection of materials used for obstacles.
-fn setup_obstacle_assets(
+fn setup_barrier_assets(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     play_world: Res<WorldSettings>,
-    mut obs_mat: ResMut<ObstacleAssets>,
+    mut obs_mat: ResMut<BarrierAssets>,
 ) {
     let height = play_world.bounds.height() / 2.0;
     let quad_dim = Vec2::new(1.0, height);
@@ -85,18 +85,18 @@ fn setup_obstacle_assets(
     });
 }
 
-fn react_to_obstacle_collision(
+fn react_to_barrier_collision(
     mut commands: Commands,
     mut events: EventReader<CollisionEvent>,
-    mut hit_events: EventWriter<HitObstacleEvent>,
-    query: Query<(Entity, Option<&RegionRef>), With<Obstacle>>,
+    mut hit_events: EventWriter<HitBarrierEvent>,
+    query: Query<(Entity, Option<&RegionRef>), With<Barrier>>,
 ) {
     for event in events.read() {
         if let CollisionEvent::Started(a, b, _) = event {
             for entity in [a, b] {
                 if let Ok(ent) = query.get(*entity) {
-                    // send the event that an obstacle as hit.
-                    hit_events.send(HitObstacleEvent);
+                    // send the event that a barrier as hit.
+                    hit_events.send(HitBarrierEvent);
 
                     // Remove any scoring regions from the parent
                     if let Some(rr) = ent.1 {
@@ -111,15 +111,15 @@ fn react_to_obstacle_collision(
 }
 
 /// Plugin for setting up obstacle-related systems and resources.
-pub struct ObstaclePlugin;
+pub struct BarrierPlugin;
 
-impl Plugin for ObstaclePlugin {
+impl Plugin for BarrierPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource::<ObstacleAssets>(ObstacleAssets::default())
-            .register_type::<ObstacleAssets>()
-            .register_type::<Obstacle>()
-            .add_event::<HitObstacleEvent>()
-            .add_systems(Startup, setup_obstacle_assets)
-            .add_systems(Update, (react_to_obstacle_collision,));
+        app.insert_resource::<BarrierAssets>(BarrierAssets::default())
+            .register_type::<BarrierAssets>()
+            .register_type::<Barrier>()
+            .add_event::<HitBarrierEvent>()
+            .add_systems(Startup, setup_barrier_assets)
+            .add_systems(Update, (react_to_barrier_collision,));
     }
 }

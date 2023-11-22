@@ -5,8 +5,8 @@ use bevy_rapier2d::prelude::*;
 
 use crate::level::{RemoveOnReset, RemoveWhenLeft};
 use crate::{
+    barrier::{new_barrier, BarrierAssets, RegionRef},
     gravity_shift::{new_gravity_region, GravityMaterials},
-    obstacle::{new_obstacle, ObstacleAssets, RegionRef},
     scoring_region::new_scoring_region,
 };
 use crate::{level::LevelSettings, WorldSettings};
@@ -96,7 +96,7 @@ fn spawn_items(
     level_settings: Res<LevelSettings>,
     meshes: ResMut<Assets<Mesh>>,
     play_world: Res<WorldSettings>,
-    obs_mat: Res<ObstacleAssets>,
+    obs_mat: Res<BarrierAssets>,
     grav_mat: Res<GravityMaterials>,
     level_timer: Res<LevelTimer>,
 ) {
@@ -175,7 +175,7 @@ fn spawn_tunnel(
     spawn: Res<SpawnerSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     play_world: Res<WorldSettings>,
-    obs_mat: Res<ObstacleAssets>,
+    obs_mat: Res<BarrierAssets>,
 ) {
     // create the level obstacles and the scoring region.
     let vel = Velocity {
@@ -206,7 +206,7 @@ fn spawn_tunnel(
         .id();
 
     commands
-        .spawn(new_obstacle(
+        .spawn(new_barrier(
             true,
             tunnel.obstacle_width,
             top_height,
@@ -223,7 +223,7 @@ fn spawn_tunnel(
             vel,
         ));
     commands
-        .spawn(new_obstacle(
+        .spawn(new_barrier(
             false,
             tunnel.obstacle_width,
             bottom_height,

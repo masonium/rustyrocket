@@ -11,12 +11,12 @@ use bevy_rapier2d::{prelude::*, render::RapierDebugRenderPlugin};
 use bevy_tweening::TweeningPlugin;
 use rustyrocket::{
     background::GameBackgroundPlugin,
+    barrier::{BarrierPlugin, HitBarrierEvent},
     center_display::CenterDisplayPlugin,
     dying_player::DyingPlayerPlugin,
     fonts::GameFontsPlugin,
     gravity_shift::GravityShiftPlugin,
     level::{LevelPlugin, LevelSettings},
-    obstacle::{HitObstacleEvent, ObstaclePlugin},
     obstacle_spawner::ObstacleSpawnerPlugin,
     player::PlayerPlugin,
     score::{Score, ScorePlugin},
@@ -89,7 +89,7 @@ fn main() {
                 ..default()
             },
         ))
-        .add_plugins(ObstaclePlugin)
+        .add_plugins(BarrierPlugin)
         .insert_resource(WorldSettings::default())
         .add_event::<ResetEvent>()
         .add_plugins(
@@ -137,7 +137,7 @@ fn main() {
         )
         .add_systems(
             Update,
-            send_event::<HitObstacleEvent>
+            send_event::<HitBarrierEvent>
                 .run_if(in_state(GameState::Playing).and_then(input_just_pressed(KeyCode::Z))),
         )
         .add_systems(Update, (close_on_esc,))

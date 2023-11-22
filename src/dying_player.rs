@@ -3,8 +3,8 @@
 use std::time::Duration;
 
 use crate::{
+    barrier::HitBarrierEvent,
     level::LevelSettings,
-    obstacle::HitObstacleEvent,
     player::{DecomposedSprite, OutOfBoundsEvent, Player, PLAYER_SCALE},
     GameState, ResetEvent,
 };
@@ -97,7 +97,7 @@ impl Plugin for DyingPlayerPlugin {
         app.add_systems(
             Update,
             (
-                explode_player.run_if(on_event::<HitObstacleEvent>()),
+                explode_player.run_if(on_event::<HitBarrierEvent>()),
                 explode_player.run_if(on_event::<OutOfBoundsEvent>()),
                 update_death_timer.run_if(in_state(GameState::Dying)),
             ),
