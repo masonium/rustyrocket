@@ -1,5 +1,6 @@
 //! Methods around spawning dying player data.
 
+use rand::Rng;
 use std::time::Duration;
 
 use crate::{
@@ -54,6 +55,7 @@ pub fn explode_player(
     mut next_state: ResMut<NextState<GameState>>,
     ds: Res<DecomposedSprite>,
 ) {
+    let mut rng = rand::thread_rng();
     // Get the existing player
     for (ent, t, v) in player.iter() {
         let trans = t.translation;
@@ -62,7 +64,7 @@ pub fn explode_player(
             death_time: Timer::new(Duration::from_secs(3), TimerMode::Once),
         },));
         for pix in &ds.pixels {
-            let rand_dir = Vec2::from_angle(fastrand::f32() * std::f32::consts::TAU);
+            let rand_dir = Vec2::from_angle(rng.gen::<f32>() * std::f32::consts::TAU);
             commands.spawn((
                 SpriteBundle {
                     sprite: Sprite {

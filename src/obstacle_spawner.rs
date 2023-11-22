@@ -1,3 +1,4 @@
+use rand::Rng;
 use std::time::Duration;
 
 use bevy::prelude::*;
@@ -12,31 +13,46 @@ use crate::{
 use crate::{level::LevelSettings, WorldSettings};
 use crate::{GameState, ResetEvent};
 
-#[derive(Resource, Reflect)]
-pub struct LevelTimer {
-    timer: Timer,
-}
-
-/// Update the level timer.
-fn update_timer(time: Res<Time>, mut timer: ResMut<LevelTimer>) {
-    timer.timer.tick(time.delta());
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum SpawnOption {
+    Tunnel,
+    Gravity,
 }
 
 /// Settings for overall object spawning.
-#[derive(Resource, Default)]
-pub struct SpawnerSettings {
+struct SpawnerSettings {
     item_vel: Vec2,
     start_offset_secs: f32,
 
     /// Spawn rate for obstacles and other spawned items in the level.
     seconds_per_item: f32,
+
+    tunnel_weight: f32,
+    tunnel_settings: TunnelSpawnSettings,
+
+    gravity_weight: f32,
+    gravity_settings: GravityRegionSettings,
 }
 
 impl SpawnerSettings {
+    fn new() -> SpawnerSettings {
+        SpawnerSettings {
+            item_vel: Vec2::new(-200.0, 0.0),
+            start_offset_secs: 0.1,
+            seconds_per_item: 2.0,
+
+            tunnel_weight: 0.8,
+            tunnel_settings: TunnelSpawnSettings::default(),
+
+            gravity_weight: 0.2,
+            gravity_settings: GravityRegionSettings {
+                gravity_width: 32.0,
+            },
+        }
+    }
+
     fn reset(&mut self) {
-        self.item_vel = Vec2::new(-200.0, 0.0);
-        self.start_offset_secs = 0.1;
-        self.seconds_per_item = 2.0;
+        *self = SpawnerSettings::new();
     }
 
     /// Return the x offset where obstacles should start.
@@ -73,10 +89,13 @@ impl Default for TunnelSpawnSettings {
     }
 }
 
-#[derive(Resource, Reflect, Default)]
+/// Track statistics based on spawning, for determining later spawns.
+#[derive(Reflect, Default)]
 pub struct SpawnStats {
     /// Total number of logical items sent since reset.
     num_items: u32,
+
+    /// Number of items spawned since the last gravity shfit.
     since_last_gravity: u32,
 }
 
@@ -88,60 +107,80 @@ impl SpawnStats {
     }
 }
 
-/// On a timer, spawn one of many items.
-fn spawn_items(
-    commands: Commands,
-    mut spawn_stats: ResMut<SpawnStats>,
-    spawn_settings: Res<SpawnerSettings>,
-    level_settings: Res<LevelSettings>,
-    meshes: ResMut<Assets<Mesh>>,
-    play_world: Res<WorldSettings>,
-    obs_mat: Res<BarrierAssets>,
-    grav_mat: Res<GravityMaterials>,
-    level_timer: Res<LevelTimer>,
-) {
-    if level_timer.timer.just_finished() {
-        let should_spawn_tunnel = spawn_stats.num_items == 0 || spawn_stats.since_last_gravity < 5;
-        spawn_stats.num_items += 1;
-        if should_spawn_tunnel {
-            let tunnel = TunnelSpawnSettings::default();
-            spawn_stats.since_last_gravity += 1;
-            spawn_tunnel(
-                &tunnel,
-                commands,
-                spawn_settings,
-                meshes,
-                play_world,
-                obs_mat,
-            );
-        } else {
-            spawn_stats.since_last_gravity = 0;
-            let gs = GravityRegionSettings {
-                gravity_width: 32.0,
-            };
-            let start_x = spawn_settings.start_offset_x(&play_world) + gs.gravity_width * 0.5;
-            spawn_gravity_region(
-                commands,
-                -level_settings.gravity_mult,
-                start_x,
-                gs,
-                spawn_settings,
-                play_world,
-                grav_mat,
-            );
-        }
+/// Obstacle spawning component.
+#[derive(Component)]
+pub struct ObstacleSpawner {
+    timer: Timer,
+    base: SpawnerSettings,
+    stats: SpawnStats,
+}
+
+/// Update the timers on the obstacle spawners
+fn update_spawner_timers(time: Res<Time>, mut query: Query<&mut ObstacleSpawner>) {
+    for mut spawner in query.iter_mut() {
+        spawner.timer.tick(time.delta());
     }
 }
 
+/// On a timer, spawn one of many items.
+fn spawn_items(
+    mut commands: Commands,
+    mut spawner_query: Query<&mut ObstacleSpawner>,
+    level_settings: Res<LevelSettings>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    play_world: Res<WorldSettings>,
+    obs_mat: Res<BarrierAssets>,
+    grav_mat: Res<GravityMaterials>,
+) {
+    let mut rng = rand::thread_rng();
+    for mut spawner in spawner_query.iter_mut() {
+        if spawner.timer.just_finished() {
+            let mut choices = vec![(SpawnOption::Tunnel, spawner.base.tunnel_weight)];
+
+            if spawner.stats.since_last_gravity >= 3 {
+                choices.push((SpawnOption::Gravity, spawner.base.gravity_weight));
+            }
+            spawner.stats.num_items += 1;
+            let dist = rand::distributions::WeightedIndex::new(choices.iter().map(|x| x.1)).unwrap();
+            match choices[rng.sample(dist)].0 {
+                SpawnOption::Tunnel => {
+                    spawner.stats.since_last_gravity += 1;
+                    spawn_tunnel(
+                        &spawner.base.tunnel_settings,
+                        &mut commands,
+                        &spawner.base,
+                        &mut meshes,
+                        &play_world,
+                        &obs_mat,
+                    );
+                }
+                SpawnOption::Gravity => {
+                    spawner.stats.since_last_gravity = 0;
+                    let gs = &spawner.base.gravity_settings;
+                    let start_x = spawner.base.start_offset_x(&play_world) + gs.gravity_width * 0.5;
+                    spawn_gravity_region(
+                        &mut commands,
+                        -level_settings.gravity_mult,
+                        start_x,
+                        gs,
+                        &spawner.base,
+                        &play_world,
+                        &grav_mat,
+                    );
+                }
+            }
+        }
+    }
+}
 /// Spawn a gravity region with the given gravity mult.
 fn spawn_gravity_region(
-    mut commands: Commands,
+    commands: &mut Commands,
     gravity_mult: f32,
     start_x: f32,
-    gs: GravityRegionSettings,
-    spawn_settings: Res<SpawnerSettings>,
-    play_world: Res<WorldSettings>,
-    grav_mat: Res<GravityMaterials>,
+    gs: &GravityRegionSettings,
+    spawn_settings: &SpawnerSettings,
+    play_world: &Res<WorldSettings>,
+    grav_mat: &Res<GravityMaterials>,
 ) {
     let vel = Velocity {
         linvel: spawn_settings.item_vel,
@@ -171,22 +210,23 @@ fn spawn_gravity_region(
 /// Spawn two barriers and a scoring region.
 fn spawn_tunnel(
     tunnel: &TunnelSpawnSettings,
-    mut commands: Commands,
-    spawn: Res<SpawnerSettings>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    play_world: Res<WorldSettings>,
-    obs_mat: Res<BarrierAssets>,
+    commands: &mut Commands,
+    spawn: &SpawnerSettings,
+    mut meshes: &mut ResMut<Assets<Mesh>>,
+    play_world: &Res<WorldSettings>,
+    obs_mat: &Res<BarrierAssets>,
 ) {
     // create the level obstacles and the scoring region.
     let vel = Velocity {
         linvel: spawn.item_vel,
         ..default()
     };
+    let mut rng = rand::thread_rng();
 
     let gap_center = tunnel.center_y_range[0]
-        + fastrand::f32() * (tunnel.center_y_range[1] - tunnel.center_y_range[0]);
+        + rng.gen::<f32>() * (tunnel.center_y_range[1] - tunnel.center_y_range[0]);
     let gap_height = tunnel.gap_height_range[0]
-        + fastrand::f32() * (tunnel.gap_height_range[1] - tunnel.gap_height_range[0]);
+        + rng.gen::<f32>() * (tunnel.gap_height_range[1] - tunnel.gap_height_range[0]);
 
     let top_height = play_world.bounds.max.y - (gap_center + gap_height / 2.0);
     let bottom_height = (gap_center - gap_height / 2.0) - play_world.bounds.min.y;
@@ -241,14 +281,21 @@ fn spawn_tunnel(
         ));
 }
 
-fn reset_obstacle_spawner(
-    mut stats: ResMut<SpawnStats>,
-    mut spawn_settings: ResMut<SpawnerSettings>,
-    mut level_timer: ResMut<LevelTimer>,
-) {
-    stats.reset();
-    spawn_settings.reset();
-    level_timer.timer.reset();
+fn reset_obstacle_spawner(mut spawners: Query<&mut ObstacleSpawner>) {
+    for mut spawner in spawners.iter_mut() {
+        spawner.timer.reset();
+        spawner.stats.reset();
+        spawner.base.reset();
+    }
+}
+
+fn setup_obstacle_spawner(mut commands: Commands) {
+    let settings = SpawnerSettings::new();
+    commands.spawn(ObstacleSpawner {
+        timer: Timer::from_seconds(settings.seconds_per_item, TimerMode::Repeating),
+        base: settings,
+        stats: SpawnStats::default(),
+    });
 }
 
 pub struct ObstacleSpawnerPlugin;
@@ -260,13 +307,8 @@ impl Plugin for ObstacleSpawnerPlugin {
         let mut timer = Timer::from_seconds(initial_secs_per_item, TimerMode::Repeating);
         timer.tick(Duration::from_secs_f32(initial_secs_per_item - 0.01));
 
-        let mut ss = SpawnerSettings::default();
-        ss.reset();
-
-        app.insert_resource(LevelTimer { timer })
-            .insert_resource(SpawnStats::default())
-            .insert_resource(ss)
-            .add_systems(PreUpdate, update_timer)
+        app.add_systems(Startup, setup_obstacle_spawner)
+            .add_systems(PreUpdate, update_spawner_timers)
             .add_systems(
                 Update,
                 (
