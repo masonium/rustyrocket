@@ -1,8 +1,12 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, asset::{AssetLoader, io::Reader, LoadContext}, utils::BoxedFuture};
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use futures_lite::AsyncReadExt;
 
 use crate::WorldSettings;
 
 /// Settings for overall object spawning.
+#[derive(Asset, TypePath, Debug, Serialize, Deserialize, Clone)]
 pub struct SpawnerSettings {
     pub item_vel: Vec2,
     pub(crate) start_offset_secs: f32,
@@ -14,6 +18,7 @@ pub struct SpawnerSettings {
     pub(crate) tunnel_settings: TunnelSpawnSettings,
 
     pub(crate) gravity_weight: f32,
+    pub min_items_between_gravity: u32,
     pub(crate) gravity_settings: GravityRegionSettings,
 }
 
@@ -28,6 +33,7 @@ impl SpawnerSettings {
 	    tunnel_settings: TunnelSpawnSettings::default(),
 
 	    gravity_weight: 0.2,
+	    min_items_between_gravity: 3,
 	    gravity_settings: GravityRegionSettings {
 		gravity_width: 32.0,
 	    },
@@ -47,6 +53,7 @@ impl SpawnerSettings {
 }
 
 /// Per instance settings for a gravity region.
+#[derive(Clone, Debug, Deserialize, Serialize, Reflect)]
 pub struct GravityRegionSettings {
     pub gravity_width: f32,
 }
@@ -54,6 +61,7 @@ pub struct GravityRegionSettings {
 /// Per instance settings for a tunnel barrier.
 ///
 /// A tunnel consists of two objects and a scoring region between them.
+#[derive(Clone, Debug, Deserialize, Serialize, Reflect)]
 pub struct TunnelSpawnSettings {
     pub center_y_range: [f32; 2],
     pub gap_height_range: [f32; 2],
@@ -69,5 +77,52 @@ impl Default for TunnelSpawnSettings {
 	    obstacle_width: 96.0,
 	    scoring_gap_width: 32.0,
 	}
+    }
+}
+
+#[derive(Default)]
+pub struct SpawnerSettingsLoader;
+
+/// Possible errors that can be produced by [`CustomAssetLoader`]
+#[non_exhaustive]
+#[derive(Debug, Error)]
+pub enum SpawnerSettingsLoaderError {
+    /// An [IO](std::io) Error
+    #[error("IO error while loading file: {0}")]
+    Io(#[from] std::io::Error),
+    /// A [RON](ron) Error
+    #[error("Could not parse RON: {0}")]
+    RonSpannedError(#[from] ron::error::SpannedError),
+}
+
+impl AssetLoader for SpawnerSettingsLoader {
+    type Asset = SpawnerSettings;
+    type Settings = ();
+    type Error = SpawnerSettingsLoaderError;
+    fn load<'a>(
+	&'a self,
+	reader: &'a mut Reader,
+	_settings: &'a (),
+	_load_context: &'a mut LoadContext,
+    ) -> BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
+	Box::pin(async move {
+	    let mut bytes = Vec::new();
+	    reader.read_to_end(&mut bytes).await?;
+	    let custom_asset = ron::de::from_bytes::<SpawnerSettings>(&bytes)?;
+	    Ok(custom_asset)
+	})
+    }
+
+    fn extensions(&self) -> &[&str] {
+	&["spawner.ron"]
+    }
+}
+
+pub struct SpawnerSettingsPlugin;
+
+impl Plugin for SpawnerSettingsPlugin {
+    fn build(&self, app: &mut App) {
+	app.init_asset::<SpawnerSettings>()
+	    .init_asset_loader::<SpawnerSettingsLoader>();
     }
 }

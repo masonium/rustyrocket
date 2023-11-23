@@ -1,0 +1,17 @@
+SpawnerSettings(
+    item_vel: Vec2(-200.0, 0.0),
+    start_offset_secs: 0.1,
+    seconds_per_item: 2.0,
+    tunnel_weight: 0.8,
+    tunnel_settings: TunnelSpawnSettings(
+        center_y_range: (-200.0, 200.0),
+        gap_height_range: (200.0, 300.0),
+        obstacle_width: 96.0,
+        scoring_gap_width: 32.0,
+    ),
+    gravity_weight: 0.2,
+    min_items_between_gravity: 3,
+    gravity_settings: GravityRegionSettings(
+        gravity_width: 32.0,
+    ),
+)

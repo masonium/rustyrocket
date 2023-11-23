@@ -1,3 +1,5 @@
+use bevy_asset_loader::asset_collection::AssetCollection;
+use bevy_asset_loader::loading_state::LoadingStateAppExt;
 use rand::Rng;
 use std::time::Duration;
 
@@ -14,10 +16,20 @@ use crate::{
 use crate::{level::LevelSettings, WorldSettings};
 use crate::{GameState, ResetEvent};
 
+/// Available options for spawning from a spawner.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum SpawnOption {
     Tunnel,
     Gravity,
+}
+
+#[derive(AssetCollection, Resource)]
+pub struct Levels {
+    #[asset(path = "levels/base.spawner.ron")]
+    pub base_level: Handle<SpawnerSettings>,
+
+    #[asset(path = "levels/fast.spawner.ron")]
+    pub fast_level: Handle<SpawnerSettings>,
 }
 
 /// Track statistics based on spawning, for determining later spawns.
@@ -42,8 +54,15 @@ impl SpawnStats {
 #[derive(Component)]
 pub struct ObstacleSpawner {
     timer: Timer,
-    base: SpawnerSettings,
+    level: SpawnerSettings,
     stats: SpawnStats,
+}
+
+impl ObstacleSpawner {
+    fn reset(&mut self) {
+	self.timer = Timer::from_seconds(self.level.seconds_per_item, TimerMode::Repeating);
+	self.stats.reset();
+    }
 }
 
 /// Update the timers on the obstacle spawners
@@ -66,10 +85,10 @@ fn spawn_items(
     let mut rng = rand::thread_rng();
     for mut spawner in spawner_query.iter_mut() {
         if spawner.timer.just_finished() {
-            let mut choices = vec![(SpawnOption::Tunnel, spawner.base.tunnel_weight)];
+            let mut choices = vec![(SpawnOption::Tunnel, spawner.level.tunnel_weight)];
 
-            if spawner.stats.since_last_gravity >= 3 {
-                choices.push((SpawnOption::Gravity, spawner.base.gravity_weight));
+            if spawner.stats.since_last_gravity >= spawner.level.min_items_between_gravity {
+                choices.push((SpawnOption::Gravity, spawner.level.gravity_weight));
             }
             spawner.stats.num_items += 1;
             let dist = rand::distributions::WeightedIndex::new(choices.iter().map(|x| x.1)).unwrap();
@@ -77,9 +96,9 @@ fn spawn_items(
                 SpawnOption::Tunnel => {
                     spawner.stats.since_last_gravity += 1;
                     spawn_tunnel(
-                        &spawner.base.tunnel_settings,
+                        &spawner.level.tunnel_settings,
                         &mut commands,
-                        &spawner.base,
+                        &spawner.level,
                         &mut meshes,
                         &play_world,
                         &obs_mat,
@@ -87,14 +106,14 @@ fn spawn_items(
                 }
                 SpawnOption::Gravity => {
                     spawner.stats.since_last_gravity = 0;
-                    let gs = &spawner.base.gravity_settings;
-                    let start_x = spawner.base.start_offset_x(&play_world) + gs.gravity_width * 0.5;
+                    let gs = &spawner.level.gravity_settings;
+                    let start_x = spawner.level.start_offset_x(&play_world) + gs.gravity_width * 0.5;
                     spawn_gravity_region(
                         &mut commands,
                         -level_settings.gravity_mult,
                         start_x,
                         gs,
-                        &spawner.base,
+                        &spawner.level,
                         &play_world,
                         &grav_mat,
                     );
@@ -212,19 +231,26 @@ fn spawn_tunnel(
         ));
 }
 
-fn reset_obstacle_spawner(mut spawners: Query<&mut ObstacleSpawner>) {
+/// Reset the state of the obstacle spawners.
+fn reset_obstacle_spawner(mut spawners: Query<&mut ObstacleSpawner>,
+			  levels: Res<Levels>,
+			  s: Res<Assets<SpawnerSettings>>
+) {
     for mut spawner in spawners.iter_mut() {
-        spawner.timer.reset();
-        spawner.stats.reset();
-        spawner.base.reset();
+	// reset the level back to the base level.
+        spawner.level = s.get(&levels.base_level).unwrap().clone();
+        spawner.reset();
     }
 }
 
-fn setup_obstacle_spawner(mut commands: Commands) {
-    let settings = SpawnerSettings::new();
+/// Initial setup of the obstacle spawner.
+fn setup_obstacle_spawner(mut commands: Commands,
+			  levels: Res<Levels>,
+			  s: Res<Assets<SpawnerSettings>>) {
+    let settings = s.get(&levels.base_level).unwrap();
     commands.spawn(ObstacleSpawner {
         timer: Timer::from_seconds(settings.seconds_per_item, TimerMode::Repeating),
-        base: settings,
+        level: s.get(&levels.base_level).unwrap().clone(),
         stats: SpawnStats::default(),
     });
 }
@@ -238,7 +264,8 @@ impl Plugin for ObstacleSpawnerPlugin {
         let mut timer = Timer::from_seconds(initial_secs_per_item, TimerMode::Repeating);
         timer.tick(Duration::from_secs_f32(initial_secs_per_item - 0.01));
 
-        app.add_systems(Startup, setup_obstacle_spawner)
+        app.add_collection_to_loading_state::<_, Levels>(GameState::AssetLoading)
+	    .add_systems(OnExit(GameState::AssetLoading), setup_obstacle_spawner)
             .add_systems(PreUpdate, update_spawner_timers)
             .add_systems(
                 Update,
