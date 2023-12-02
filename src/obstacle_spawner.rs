@@ -4,11 +4,17 @@ use rand::Rng;
 use std::time::Duration;
 
 use bevy::prelude::*;
+use bevy::utils::tracing;
 use bevy_rapier2d::prelude::*;
+use bevy_tweening::{component_animator_system, AnimationSystem, Animator, EaseMethod, Tween};
 
 use crate::level::{RemoveOnReset, RemoveWhenLeft};
-use crate::obstacle::spawner_settings::{SpawnerSettings, GravityRegionSettings, TunnelSpawnSettings};
+use crate::obstacle::spawner_settings::{
+    GravityRegionSettings, SpawnerSettings, TunnelSpawnSettings,
+};
+use crate::obstacle::Obstacle;
 use crate::score::Score;
+use crate::util::LinearVelocityLens;
 use crate::{
     barrier::{new_barrier, BarrierAssets, RegionRef},
     gravity_shift::{new_gravity_region, GravityMaterials},
@@ -23,6 +29,9 @@ enum SpawnOption {
     Tunnel,
     Gravity,
 }
+
+#[derive(Event)]
+pub struct LevelChangeEvent;
 
 #[derive(AssetCollection, Resource)]
 pub struct Levels {
@@ -63,21 +72,27 @@ pub struct ObstacleSpawner {
 impl ObstacleSpawner {
     /// Set the new spawner settings, and update the time to match the new level settings.
     fn set_level(&mut self, level: SpawnerSettings) {
-	self.level = level;
-	self.timer = Timer::from_seconds(self.level.seconds_per_item, TimerMode::Repeating);
+        self.level = level;
+        self.timer = Timer::from_seconds(self.level.seconds_per_item, TimerMode::Repeating);
     }
 
     /// If there is a queued next level, set the level to this new level to take effect, and clear
     /// the queued level.
-    fn advance_queued_level(&mut self) {
-	if let Some(next_level) = self.next_level.take() {
-	    self.set_level(next_level);
-	}
+    ///
+    /// Returns true if the level changed.
+    #[must_use]
+    fn advance_queued_level(&mut self) -> bool {
+        if let Some(next_level) = self.next_level.take() {
+            self.set_level(next_level);
+            true
+        } else {
+            false
+        }
     }
 
     fn reset(&mut self) {
-	self.timer = Timer::from_seconds(self.level.seconds_per_item, TimerMode::Repeating);
-	self.stats.reset();
+        self.timer = Timer::from_seconds(self.level.seconds_per_item, TimerMode::Repeating);
+        self.stats.reset();
     }
 }
 
@@ -97,6 +112,7 @@ fn spawn_items(
     play_world: Res<WorldSettings>,
     obs_mat: Res<BarrierAssets>,
     grav_mat: Res<GravityMaterials>,
+    mut change_level: EventWriter<LevelChangeEvent>,
 ) {
     let mut rng = rand::thread_rng();
     for mut spawner in spawner_query.iter_mut() {
@@ -107,7 +123,8 @@ fn spawn_items(
                 choices.push((SpawnOption::Gravity, spawner.level.gravity_weight));
             }
             spawner.stats.num_items += 1;
-            let dist = rand::distributions::WeightedIndex::new(choices.iter().map(|x| x.1)).unwrap();
+            let dist =
+                rand::distributions::WeightedIndex::new(choices.iter().map(|x| x.1)).unwrap();
             match choices[rng.sample(dist)].0 {
                 SpawnOption::Tunnel => {
                     spawner.stats.since_last_gravity += 1;
@@ -123,7 +140,8 @@ fn spawn_items(
                 SpawnOption::Gravity => {
                     spawner.stats.since_last_gravity = 0;
                     let gs = &spawner.level.gravity_settings;
-                    let start_x = spawner.level.start_offset_x(&play_world) + gs.gravity_width * 0.5;
+                    let start_x =
+                        spawner.level.start_offset_x(&play_world) + gs.gravity_width * 0.5;
                     spawn_gravity_region(
                         &mut commands,
                         -level_settings.gravity_mult,
@@ -136,8 +154,10 @@ fn spawn_items(
                 }
             }
 
-	    // Set the level to the next level if there is a level queued.
-	    spawner.advance_queued_level();
+            // Set the level to the next level if there is a level queued.
+            if spawner.advance_queued_level() {
+                change_level.send(LevelChangeEvent);
+            }
         }
     }
 }
@@ -173,6 +193,7 @@ fn spawn_gravity_region(
             RemoveWhenLeft(width),
             RemoveOnReset,
             vel,
+            Obstacle,
         ));
 }
 
@@ -211,7 +232,12 @@ fn spawn_tunnel(
             ),
             Vec2::new(scoring_gap_width, scoring_gap_height),
         ))
-        .insert((RemoveWhenLeft(scoring_gap_width), RemoveOnReset, vel))
+        .insert((
+            RemoveWhenLeft(scoring_gap_width),
+            RemoveOnReset,
+            vel,
+            Obstacle,
+        ))
         .id();
 
     commands
@@ -230,6 +256,7 @@ fn spawn_tunnel(
             RemoveWhenLeft(tunnel.obstacle_width),
             RemoveOnReset,
             vel,
+            Obstacle,
         ));
     commands
         .spawn(new_barrier(
@@ -247,44 +274,74 @@ fn spawn_tunnel(
             RemoveWhenLeft(tunnel.obstacle_width),
             RemoveOnReset,
             vel,
+            Obstacle,
         ));
 }
 
 /// Update spawner when the score reaches a certain amount.
-fn update_spawner_by_score(mut spawners: Query<&mut ObstacleSpawner>,
-			   score: Res<Score>,
-			   ss: Res<Assets<SpawnerSettings>>,
-			   levels: Res<Levels>) {
+fn update_spawner_by_score(
+    mut spawners: Query<&mut ObstacleSpawner>,
+    score: Res<Score>,
+    ss: Res<Assets<SpawnerSettings>>,
+    levels: Res<Levels>,
+) {
     if score.score == 2 && score.is_changed() {
-	for mut spawner in spawners.iter_mut() {
-	    println!("level change");
-	    spawner.next_level = Some(ss.get(&levels.fast_level).unwrap().clone());
-	}
+        for mut spawner in spawners.iter_mut() {
+            tracing::event!(tracing::Level::INFO, "queued level change");
+            spawner.next_level = Some(ss.get(&levels.fast_level).unwrap().clone());
+        }
     }
 }
 
+/// Use a tweener to update obstacle speeds when the level changes.
+fn update_obstacle_speeds(
+    mut commands: Commands,
+    obstacle_spawner: Query<&ObstacleSpawner>,
+    obstacles: Query<(Entity, &Velocity), With<Obstacle>>,
+) {
+    let Ok(item_vel) = obstacle_spawner.get_single().map(|x| x.level.item_vel) else {
+        return;
+    };
+    for (ent, vel) in obstacles.iter() {
+        let anim = Animator::new(Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs_f64(0.5),
+            LinearVelocityLens {
+                start_linvel: vel.linvel,
+                end_linvel: item_vel,
+            },
+        ));
+        commands
+            .entity(ent)
+            .remove::<Animator<Velocity>>()
+            .insert(anim);
+    }
+}
 
 /// Reset the state of the obstacle spawners.
-fn reset_obstacle_spawner(mut spawners: Query<&mut ObstacleSpawner>,
-			  levels: Res<Levels>,
-			  s: Res<Assets<SpawnerSettings>>
+fn reset_obstacle_spawner(
+    mut spawners: Query<&mut ObstacleSpawner>,
+    levels: Res<Levels>,
+    s: Res<Assets<SpawnerSettings>>,
 ) {
     for mut spawner in spawners.iter_mut() {
-	// reset the level back to the base level.
+        // reset the level back to the base level.
         spawner.set_level(s.get(&levels.base_level).unwrap().clone());
         spawner.reset();
     }
 }
 
 /// Initial setup of the obstacle spawner.
-fn setup_obstacle_spawner(mut commands: Commands,
-			  levels: Res<Levels>,
-			  s: Res<Assets<SpawnerSettings>>) {
+fn setup_obstacle_spawner(
+    mut commands: Commands,
+    levels: Res<Levels>,
+    s: Res<Assets<SpawnerSettings>>,
+) {
     let settings = s.get(&levels.base_level).unwrap();
     commands.spawn(ObstacleSpawner {
         timer: Timer::from_seconds(settings.seconds_per_item, TimerMode::Repeating),
         level: s.get(&levels.base_level).unwrap().clone(),
-	next_level: None,
+        next_level: None,
         stats: SpawnStats::default(),
     });
 }
@@ -299,13 +356,19 @@ impl Plugin for ObstacleSpawnerPlugin {
         timer.tick(Duration::from_secs_f32(initial_secs_per_item - 0.01));
 
         app.add_collection_to_loading_state::<_, Levels>(GameState::AssetLoading)
-	    .add_systems(OnExit(GameState::AssetLoading), setup_obstacle_spawner)
+            .add_event::<LevelChangeEvent>()
+            .add_systems(OnExit(GameState::AssetLoading), setup_obstacle_spawner)
             .add_systems(PreUpdate, update_spawner_timers)
+            .add_systems(
+                Update,
+                component_animator_system::<Velocity>.in_set(AnimationSystem::AnimationUpdate),
+            )
             .add_systems(
                 Update,
                 (
                     spawn_items,
-		    update_spawner_by_score,
+                    update_spawner_by_score,
+                    update_obstacle_speeds.run_if(on_event::<LevelChangeEvent>()),
                     // spawn_tunnel.run_if(input_just_pressed(KeyCode::O)),
                     // spawn_gravity_region.run_if(input_just_pressed(KeyCode::G)),
                 )

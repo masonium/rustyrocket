@@ -1,7 +1,11 @@
-use bevy::{prelude::*, asset::{AssetLoader, io::Reader, LoadContext}, utils::BoxedFuture};
+use bevy::{
+    asset::{io::Reader, AssetLoader, LoadContext},
+    prelude::*,
+    utils::BoxedFuture,
+};
+use futures_lite::AsyncReadExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use futures_lite::AsyncReadExt;
 
 use crate::WorldSettings;
 
@@ -24,31 +28,31 @@ pub struct SpawnerSettings {
 
 impl SpawnerSettings {
     pub fn new() -> SpawnerSettings {
-	SpawnerSettings {
-	    item_vel: Vec2::new(-200.0, 0.0),
-	    start_offset_secs: 0.1,
-	    seconds_per_item: 2.0,
+        SpawnerSettings {
+            item_vel: Vec2::new(-200.0, 0.0),
+            start_offset_secs: 0.1,
+            seconds_per_item: 2.0,
 
-	    tunnel_weight: 0.8,
-	    tunnel_settings: TunnelSpawnSettings::default(),
+            tunnel_weight: 0.8,
+            tunnel_settings: TunnelSpawnSettings::default(),
 
-	    gravity_weight: 0.2,
-	    min_items_between_gravity: 3,
-	    gravity_settings: GravityRegionSettings {
-		gravity_width: 32.0,
-	    },
-	}
+            gravity_weight: 0.2,
+            min_items_between_gravity: 3,
+            gravity_settings: GravityRegionSettings {
+                gravity_width: 32.0,
+            },
+        }
     }
 
     pub fn reset(&mut self) {
-	*self = SpawnerSettings::new();
+        *self = SpawnerSettings::new();
     }
 
     /// Return the x offset where obstacles should start.
     ///
     /// Most obstacles should be shifted so that left boundary begins at start_offset.
     pub fn start_offset_x(&self, play_world: &WorldSettings) -> f32 {
-	play_world.bounds.max.x - self.item_vel.x * self.start_offset_secs
+        play_world.bounds.max.x - self.item_vel.x * self.start_offset_secs
     }
 }
 
@@ -71,12 +75,12 @@ pub struct TunnelSpawnSettings {
 
 impl Default for TunnelSpawnSettings {
     fn default() -> Self {
-	Self {
-	    center_y_range: [-200.0, 200.0],
-	    gap_height_range: [200.0, 300.0],
-	    obstacle_width: 96.0,
-	    scoring_gap_width: 32.0,
-	}
+        Self {
+            center_y_range: [-200.0, 200.0],
+            gap_height_range: [200.0, 300.0],
+            obstacle_width: 96.0,
+            scoring_gap_width: 32.0,
+        }
     }
 }
 
@@ -100,21 +104,21 @@ impl AssetLoader for SpawnerSettingsLoader {
     type Settings = ();
     type Error = SpawnerSettingsLoaderError;
     fn load<'a>(
-	&'a self,
-	reader: &'a mut Reader,
-	_settings: &'a (),
-	_load_context: &'a mut LoadContext,
+        &'a self,
+        reader: &'a mut Reader,
+        _settings: &'a (),
+        _load_context: &'a mut LoadContext,
     ) -> BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
-	Box::pin(async move {
-	    let mut bytes = Vec::new();
-	    reader.read_to_end(&mut bytes).await?;
-	    let custom_asset = ron::de::from_bytes::<SpawnerSettings>(&bytes)?;
-	    Ok(custom_asset)
-	})
+        Box::pin(async move {
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).await?;
+            let custom_asset = ron::de::from_bytes::<SpawnerSettings>(&bytes)?;
+            Ok(custom_asset)
+        })
     }
 
     fn extensions(&self) -> &[&str] {
-	&["spawner.ron"]
+        &["spawner.ron"]
     }
 }
 
@@ -122,7 +126,7 @@ pub struct SpawnerSettingsPlugin;
 
 impl Plugin for SpawnerSettingsPlugin {
     fn build(&self, app: &mut App) {
-	app.init_asset::<SpawnerSettings>()
-	    .init_asset_loader::<SpawnerSettingsLoader>();
+        app.init_asset::<SpawnerSettings>()
+            .init_asset_loader::<SpawnerSettingsLoader>();
     }
 }

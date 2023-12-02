@@ -10,6 +10,7 @@ pub mod player;
 pub mod score;
 pub mod score_display;
 pub mod scoring_region;
+pub mod util;
 use bevy::prelude::*;
 
 pub use obstacle::{barrier, gravity_shift};

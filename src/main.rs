@@ -17,12 +17,13 @@ use rustyrocket::{
     fonts::GameFontsPlugin,
     gravity_shift::GravityShiftPlugin,
     level::{LevelPlugin, LevelSettings},
+    obstacle::spawner_settings::SpawnerSettingsPlugin,
     obstacle_spawner::ObstacleSpawnerPlugin,
     player::PlayerPlugin,
     score::{Score, ScorePlugin},
     score_display::ScoreDisplayPlugin,
     scoring_region::ScoringRegionPlugin,
-    send_event, ResetEvent, WorldSet, WorldSettings, obstacle::spawner_settings::SpawnerSettingsPlugin,
+    send_event, ResetEvent, WorldSet, WorldSettings,
 };
 
 use rustyrocket::GameState;

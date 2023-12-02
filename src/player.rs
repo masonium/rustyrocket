@@ -89,6 +89,7 @@ fn spawn_player(
         Player,
         Collider::cuboid(20.0, 28.0),
         RigidBody::Dynamic,
+	GravityScale::default(),
         Velocity::default(),
         Sensor,
         Name::new("Player"),
@@ -107,6 +108,20 @@ fn handle_input(
             v.linvel = level.jump_vector();
         }
     }
+}
+
+fn update_player_gravity(
+    mut player: Query<(&Velocity, &mut GravityScale), With<Player>>,
+    rapier_config: Res<RapierConfiguration>,
+) -> anyhow::Result<()> {
+    let (vel, mut gs) = player.get_single_mut()?;
+    if vel.linvel.y * rapier_config.gravity.y > 0.0 {
+	gs.0 = 1.2;
+    } else {
+	gs.0 = 1.0;
+    }
+
+    Ok(())
 }
 
 /// Update the animation state of the player based on its action state.
@@ -269,6 +284,7 @@ impl Plugin for PlayerPlugin {
                     handle_input,
                     signal_player_out_of_bounds,
                     rotate_player_on_gravity_change,
+		    update_player_gravity.map(std::mem::drop),
                 )
                     .in_set(PlayerSet)
                     .run_if(in_state(GameState::Playing)),
