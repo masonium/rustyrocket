@@ -22,7 +22,7 @@ use rustyrocket::{
     score::{Score, ScorePlugin},
     score_display::ScoreDisplayPlugin,
     scoring_region::ScoringRegionPlugin,
-    send_event, ResetEvent, WorldSet, WorldSettings, obstacle::spawner_settings::{SpawnerSettings, SpawnerSettingsPlugin},
+    send_event, ResetEvent, WorldSet, WorldSettings, obstacle::spawner_settings::SpawnerSettingsPlugin,
 };
 
 use rustyrocket::GameState;

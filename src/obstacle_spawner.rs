@@ -8,6 +8,7 @@ use bevy_rapier2d::prelude::*;
 
 use crate::level::{RemoveOnReset, RemoveWhenLeft};
 use crate::obstacle::spawner_settings::{SpawnerSettings, GravityRegionSettings, TunnelSpawnSettings};
+use crate::score::Score;
 use crate::{
     barrier::{new_barrier, BarrierAssets, RegionRef},
     gravity_shift::{new_gravity_region, GravityMaterials},
@@ -55,10 +56,25 @@ impl SpawnStats {
 pub struct ObstacleSpawner {
     timer: Timer,
     level: SpawnerSettings,
+    next_level: Option<SpawnerSettings>,
     stats: SpawnStats,
 }
 
 impl ObstacleSpawner {
+    /// Set the new spawner settings, and update the time to match the new level settings.
+    fn set_level(&mut self, level: SpawnerSettings) {
+	self.level = level;
+	self.timer = Timer::from_seconds(self.level.seconds_per_item, TimerMode::Repeating);
+    }
+
+    /// If there is a queued next level, set the level to this new level to take effect, and clear
+    /// the queued level.
+    fn advance_queued_level(&mut self) {
+	if let Some(next_level) = self.next_level.take() {
+	    self.set_level(next_level);
+	}
+    }
+
     fn reset(&mut self) {
 	self.timer = Timer::from_seconds(self.level.seconds_per_item, TimerMode::Repeating);
 	self.stats.reset();
@@ -119,6 +135,9 @@ fn spawn_items(
                     );
                 }
             }
+
+	    // Set the level to the next level if there is a level queued.
+	    spawner.advance_queued_level();
         }
     }
 }
@@ -231,6 +250,20 @@ fn spawn_tunnel(
         ));
 }
 
+/// Update spawner when the score reaches a certain amount.
+fn update_spawner_by_score(mut spawners: Query<&mut ObstacleSpawner>,
+			   score: Res<Score>,
+			   ss: Res<Assets<SpawnerSettings>>,
+			   levels: Res<Levels>) {
+    if score.score == 2 && score.is_changed() {
+	for mut spawner in spawners.iter_mut() {
+	    println!("level change");
+	    spawner.next_level = Some(ss.get(&levels.fast_level).unwrap().clone());
+	}
+    }
+}
+
+
 /// Reset the state of the obstacle spawners.
 fn reset_obstacle_spawner(mut spawners: Query<&mut ObstacleSpawner>,
 			  levels: Res<Levels>,
@@ -238,7 +271,7 @@ fn reset_obstacle_spawner(mut spawners: Query<&mut ObstacleSpawner>,
 ) {
     for mut spawner in spawners.iter_mut() {
 	// reset the level back to the base level.
-        spawner.level = s.get(&levels.base_level).unwrap().clone();
+        spawner.set_level(s.get(&levels.base_level).unwrap().clone());
         spawner.reset();
     }
 }
@@ -251,6 +284,7 @@ fn setup_obstacle_spawner(mut commands: Commands,
     commands.spawn(ObstacleSpawner {
         timer: Timer::from_seconds(settings.seconds_per_item, TimerMode::Repeating),
         level: s.get(&levels.base_level).unwrap().clone(),
+	next_level: None,
         stats: SpawnStats::default(),
     });
 }
@@ -271,6 +305,7 @@ impl Plugin for ObstacleSpawnerPlugin {
                 Update,
                 (
                     spawn_items,
+		    update_spawner_by_score,
                     // spawn_tunnel.run_if(input_just_pressed(KeyCode::O)),
                     // spawn_gravity_region.run_if(input_just_pressed(KeyCode::G)),
                 )
